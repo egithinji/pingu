@@ -3,7 +3,7 @@
 const FLAGSANDOFFSET: u16 = 16384_u16;
 const TOTAL_LENGTH: u16 = 38;
 
-struct IcmpRequest {
+pub struct IcmpRequest {
     version: u16,
     ihl: u16,
     type_of_service: u8,
@@ -22,13 +22,13 @@ struct IcmpRequest {
     identifier: u16,
     sequence_number: u16,
     data: [u8; 10],
-    raw_icmp_bytes: Vec<u8>,
-    raw_ip_bytes: Vec<u8>,
-    entire_packet: Vec<u8>,
+    pub raw_icmp_bytes: Vec<u8>,
+    pub raw_ip_bytes: Vec<u8>,
+    pub entire_packet: Vec<u8>,
 }
 
 impl IcmpRequest {
-    fn new(source: [u8; 4], dest: [u8; 4]) -> Self {
+    pub fn new(source: [u8; 4], dest: [u8; 4]) -> Self {
         let mut temp = IcmpRequest {
             version: 4,
             ihl: 5,
@@ -154,7 +154,6 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
 
     let mut sum: u16 = 0;
 
-    println!("words length: {}", words.len());
     for i in 0..words.len() {
         let (s, overflows) = sum.overflowing_add(words[i]);
         sum = if overflows {
@@ -168,6 +167,7 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
     let sum = !sum;
     sum
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -296,7 +296,7 @@ mod tests {
 
         assert_eq!(
             wireshark_checksum,
-            calculate_checksum(test_icmp.raw_ip_bytes)
+            calculate_checksum(&mut test_icmp.raw_ip_bytes)
         );
     }
 }
