@@ -1,5 +1,5 @@
 const FLAGSANDOFFSET: u16 = 16384_u16;
-const TOTAL_LENGTH: u16 = 38;
+const TOTAL_LENGTH: u16 = 46;
 
 pub struct IcmpRequest {
     version: u16,
@@ -19,7 +19,7 @@ pub struct IcmpRequest {
     icmp_checksum: u16,
     identifier: u16,
     sequence_number: u16,
-    data: [u8; 10],
+    data: [u8; 18],
     pub raw_icmp_bytes: Vec<u8>,
     pub raw_ip_bytes: Vec<u8>,
     pub entire_packet: Vec<u8>,
@@ -31,7 +31,7 @@ impl IcmpRequest {
             version: 4,
             ihl: 5,
             type_of_service: 0,
-            total_length: 38,
+            total_length: TOTAL_LENGTH,
             identification: 0,
             flags: 0, /*make this private. the byte representation will be set with raw_ip_bytes()*/
             fragment_offset: 0, /*make this private. the byte representation will be set with raw_ip_bytes()*/
@@ -45,7 +45,7 @@ impl IcmpRequest {
             icmp_checksum: 0,
             identifier: 0,
             sequence_number: 0,
-            data: [106, 111, 110, 32, 112, 111, 115, 116, 101, 108],
+            data: [106, 111, 110, 32, 112, 111, 115, 116, 101, 108,32,32,32,32,32,32,32,32],
             raw_icmp_bytes: Vec::new(),
             raw_ip_bytes: Vec::new(),
             entire_packet: Vec::new(),
@@ -54,10 +54,9 @@ impl IcmpRequest {
         temp = IcmpRequest::set_raw_icmp_bytes(temp);
         temp.icmp_checksum = calculate_checksum(&mut temp.raw_icmp_bytes);
         temp = IcmpRequest::set_raw_icmp_bytes(temp);
+        println!("Icmp checksum: {:#x}",temp.icmp_checksum);
         temp = IcmpRequest::set_raw_ip_bytes(temp);
-        println!("protocol before checksum: {}", temp.protocol);
         temp.header_checksum = calculate_checksum(&mut temp.raw_ip_bytes);
-        println!("protocol after checksum: {}", temp.protocol);
         temp = IcmpRequest::set_raw_ip_bytes(temp);
         temp.entire_packet.extend_from_slice(&temp.raw_ip_bytes);
         temp.entire_packet.extend_from_slice(&temp.raw_icmp_bytes);
