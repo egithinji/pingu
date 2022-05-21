@@ -55,7 +55,8 @@ impl EthernetFrame {
 fn get_fcs(bytes: &Vec<u8>) -> [u8;4]{
 
     //crc32fast::hash(&bytes[8..bytes.len()]).to_be_bytes()
-    crc32fast::hash(&bytes[0..bytes.len()-4]).to_be_bytes()
+    //crc32fast::hash(&bytes[..]).to_be_bytes()
+    crc32fast::hash(&bytes[0..bytes.len()-4]).to_le_bytes()
     
 }
 
