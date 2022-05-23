@@ -1,7 +1,7 @@
-use pingtel::packets::IcmpRequest;
-use pingtel::senders::UdpSender;
-use pingtel::senders;
-use pingtel::ethernet;
+use pingu::packets::IcmpRequest;
+use pingu::senders::UdpSender;
+use pingu::senders;
+use pingu::ethernet;
 
 fn main() {
     //let icmp_request = IcmpRequest::new([192, 168, 100, 16], [8, 8, 8, 8]);

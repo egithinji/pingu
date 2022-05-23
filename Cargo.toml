@@ -1,7 +1,7 @@
 #![feature(bigint_helper_methods)]
 
 [package]
-name = "pingtel"
+name = "pingu"
 version = "0.1.0"
 edition = "2021"
 
