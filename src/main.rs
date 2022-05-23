@@ -2,18 +2,14 @@ use pingu::packets::IcmpRequest;
 use pingu::senders;
 
 fn main() {
-    //let icmp_request = IcmpRequest::new([192, 168, 100, 16], [8, 8, 8, 8]);
-
-    //senders::raw_send("enp2s0".to_string(),icmp_request);
-
-
-    //let udp_sender = UdpSender::new(icmp_request);
-
-   // udp_sender.send();
-
     let icmp_request = IcmpRequest::new([192, 168, 100, 16], [8, 8, 8, 8]);
 
-    senders::raw_send(icmp_request);
-    //senders::raw_send3(icmp_request);
-
+    match senders::raw_send(icmp_request) {
+        Ok(()) => {
+            println!("Packet sent successfully.")
+        }
+        Err(e) => {
+            println!("Error sending packet to socket: {}", e);
+        }
+    }
 }
