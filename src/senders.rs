@@ -22,5 +22,4 @@ pub fn raw_send(icmp_packet: IcmpRequest) {
         }
     }
 
-
 }
