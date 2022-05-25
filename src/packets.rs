@@ -1,3 +1,6 @@
+use crate::senders::Packet;
+use crate::senders::PacketType;
+
 const FLAGSANDOFFSET: u16 = 16384_u16;
 const TOTAL_LENGTH: u16 = 20 + 8 + (DATA.len() as u16); //IP Header + ICMP Header + Data
                                                         //const DATA: [u8;18] = [106, 111, 110, 32, 112, 111, 115, 116, 101, 108,32,32,32,32,32,32,32,32];
@@ -171,6 +174,17 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
 
     let sum = !sum;
     sum
+}
+
+impl Packet for IcmpRequest {
+    fn raw_bytes(&self) -> &Vec<u8> {
+        &self.entire_packet
+    }
+
+    fn packet_type(&self) -> PacketType {
+        PacketType::IcmpRequest        
+    }
+    
 }
 
 #[cfg(test)]

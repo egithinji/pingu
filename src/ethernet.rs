@@ -3,14 +3,14 @@ use crc32fast;
 pub struct EthernetFrame {
     dest_mac: [u8; 6],
     source_mac: [u8; 6],
-    length: [u8; 2],
+    ether_type: [u8; 2],
     payload: Vec<u8>,
     fcs: [u8; 4],
     pub raw_bytes: Vec<u8>,
 }
 
 impl EthernetFrame {
-    pub fn new(payload: Vec<u8>, dest_mac: [u8; 6], source_mac: [u8; 6]) -> Self {
+    pub fn new(ether_type: [u8;2], payload: Vec<u8>, dest_mac: [u8; 6], source_mac: [u8; 6]) -> Self {
         /*if payload.len() < 46 {
             unimplemented!();
         }*/
@@ -18,7 +18,7 @@ impl EthernetFrame {
         let mut temp = EthernetFrame {
             dest_mac,
             source_mac,
-            length: [0x08u8, 0x00u8],
+            ether_type,
             payload,
             fcs: [0, 0, 0, 0],
             raw_bytes: Vec::new(),
@@ -35,7 +35,7 @@ impl EthernetFrame {
         let mut v: Vec<u8> = Vec::new();
         v.extend_from_slice(&ether.dest_mac);
         v.extend_from_slice(&ether.source_mac);
-        v.extend_from_slice(&ether.length);
+        v.extend_from_slice(&ether.ether_type);
         v.extend_from_slice(&ether.payload);
         v.extend_from_slice(&ether.fcs);
 
@@ -76,7 +76,7 @@ mod tests {
         ];
 
         let icmp_packet = packets::IcmpRequest::new([192, 168, 100, 16], [8, 8, 8, 8]);
-        let eth_packet = EthernetFrame::new(icmp_packet.entire_packet,DEST_MAC,SOURCE_MAC);
+        let eth_packet = EthernetFrame::new([0x08,0x00],icmp_packet.entire_packet,DEST_MAC,SOURCE_MAC);
 
         assert_eq!(&ref_bytes[0..16],&eth_packet.raw_bytes[0..16]); 
         //Skip IP Header Total Length and Identification 
