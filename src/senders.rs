@@ -25,7 +25,7 @@ pub fn raw_send(packet: impl Packet) -> Result<(), Error> {
 
     let source_mac = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f]; //temporary fix. source_mac shold be
                                                            //found via file system.
-    let eth_packet = ethernet::EthernetFrame::new(eth_type, packet.raw_bytes().clone(), dest_mac, source_mac);
+    let eth_packet = ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac);
 
     let mut handle = Device::lookup().unwrap().open().unwrap();
 
