@@ -20,8 +20,8 @@ fn main() {
         }
     }*/
 
-    match receivers::get_arp_reply() {
+    /*match receivers::get_arp_reply() {
         Ok(packet) => println!("Got packet! {:?}",packet),
         Err(e) => println!("Error: {:?}",e)
-    }
+    }*/
 }
