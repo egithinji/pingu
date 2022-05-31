@@ -1,6 +1,7 @@
 use crate::ethernet;
 use pcap::{Device, Error};
 
+#[derive(Clone)]
 pub enum PacketType {
     IcmpRequest,
     Arp,
@@ -20,7 +21,7 @@ pub fn raw_send(packet: impl Packet) -> Result<(), Error> {
         },
         PacketType::Arp => {
             ([0xff,0xff,0xff,0xff,0xff,0xff,], [0x08,0x06])
-        }
+        },
     };
 
     let source_mac = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f]; //temporary fix. source_mac shold be
@@ -42,11 +43,14 @@ mod tests {
     use super::raw_send;
     use super::get_local_mac;
     use crate::packets::IcmpRequest;
+    use crate::ipv4::Ipv4;
+    use crate::senders::{Packet,PacketType};
 
     #[test]
     fn valid_packet_sent_down_wire() {
-        let icmp_request = IcmpRequest::new([192, 168, 100, 16], [8, 8, 8, 8]);
-        let result = raw_send(icmp_request);
+        let icmp_packet = IcmpRequest::new();
+        let ipv4_packet = Ipv4::new([192, 168, 100, 16], [8, 8, 8, 8],icmp_packet.raw_bytes().clone(), PacketType::IcmpRequest); 
+        let result = raw_send(ipv4_packet);
 
         assert!(result.is_ok());
     }

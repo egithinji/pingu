@@ -138,6 +138,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn gets_correct_mac_based_on_ip() {
         let target_ip = [192, 168, 100, 132];
         let target_mac = [0x78, 0x5d, 0xc8, 0xae, 0x3a, 0x2c];
