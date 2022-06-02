@@ -5,6 +5,7 @@ use pcap::{Device, Error};
 use std::fs::File;
 use std::io::prelude::*;
 use std::net;
+use default_net;
 
 const SYSFS_PATH: &'static str = "/sys/class/net/";
 const SYSFS_FILENAME: &'static str = "/address";
@@ -23,28 +24,12 @@ pub trait Packet {
 }
 
 pub fn raw_send(bytes: &[u8]) -> Result<(), Error> {
-    /*let (dest_mac, eth_type) = match packet.packet_type() {
-        PacketType::IcmpRequest => {
-            ([0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3], [0x08, 0x00]) //temporary fix. dest_mac should be
-                                                                 //obtained via arp.
-        }
-        PacketType::Arp => ([0xff, 0xff, 0xff, 0xff, 0xff, 0xff], [0x08, 0x06]),
-    };
-
-    let (source_mac, _) = get_local_mac_ip();
-
-    let eth_packet =
-        ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
-
-    let mut handle = Device::lookup().unwrap().open().unwrap();*/
-
-    //let mut handle = Device::list().unwrap()[0].open().unwrap().sendpacket(bytes)
     let handle = Device::list().unwrap().remove(0);
     let mut cap = handle.open().unwrap();
     cap.sendpacket(bytes)
 }
 
-pub async fn send(packet: impl Packet) -> Result<(), Error>{
+pub async fn send(packet: impl Packet, source_mac: Vec<u8>) -> Result<(), Error>{
     //if the dest ip is local, do arp request to get dest mac.
     //if external, set dest mac to mac of gateway.
     let dest_ip = net::Ipv4Addr::new(
@@ -58,7 +43,16 @@ pub async fn send(packet: impl Packet) -> Result<(), Error>{
         println!("dest ip is private, get mac of target...");
         arp::get_mac_of_target(&dest_ip.octets()).await.unwrap()
     } else {
-        [0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3].to_vec() //need to get this programmatically
+        //[0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3].to_vec() //need to get this programmatically
+        match default_net::get_default_gateway() {
+            Ok(gateway) => {
+                gateway.mac_addr.octets().to_vec()
+            },
+            Err(e) => {
+                panic!("Error getting default gateway:{}",e);
+            }
+
+        }
     };
 
     let eth_type = match packet.packet_type() {
@@ -66,7 +60,6 @@ pub async fn send(packet: impl Packet) -> Result<(), Error>{
         PacketType::Arp => [0x08, 0x06],
     };
 
-    let (source_mac, _) = get_local_mac_ip();
     let eth_packet =
         ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
 
@@ -117,7 +110,7 @@ mod tests {
             icmp_packet.raw_bytes().clone(),
             PacketType::IcmpRequest,
         );
-        let result = send(ipv4_packet);
+        let result = send(ipv4_packet, [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f].to_vec());
 
         assert!(result.await.is_ok());
     }
