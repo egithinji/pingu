@@ -104,6 +104,15 @@ impl Packet for IcmpRequest {
     fn packet_type(&self) -> PacketType {
         PacketType::IcmpRequest        
     }
+
+    fn dest_address(&self) -> Option<Vec<u8>> {
+        None
+    }
+    
+    fn source_address(&self) -> Option<Vec<u8>> {
+        None
+    }
+
 }
 
 #[cfg(test)]

@@ -60,6 +60,14 @@ impl Packet for ArpRequest {
     fn packet_type(&self) -> PacketType {
         PacketType::Arp
     }
+
+    fn dest_address(&self) -> Option<Vec<u8>> {
+        None
+    }
+    
+    fn source_address(&self) -> Option<Vec<u8>> {
+        None
+    }
 }
 
 pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str> {
@@ -92,16 +100,14 @@ pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str
         tx.send(ethernet_packet);
     });
 
-    //send arp request
-    match senders::raw_send(arp_request) {
-        Ok(()) => {
-            println!("Packet sent successfully.");
-        }
-        Err(e) => {
-            println!("Error sending packet to socket: {}", e);
-        }
-    };
-
+    //send the packet
+    let eth_packet =
+        ethernet::EthernetFrame::new(&[0x08, 0x06], &arp_request.raw_bytes(), &[0xff, 0xff, 0xff, 0xff, 0xff, 0xff], &source_mac[..]);
+    match senders::raw_send(&eth_packet.raw_bytes[..]) {
+        Ok(()) => {println!("arp broadcast sent successfully.")},
+        Err(e) => {println!("error sending arp broadcast: {}",e)},
+    }
+    
     //await the reply from the channel
     match rx.await {
         Ok(v) => {

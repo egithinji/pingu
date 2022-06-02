@@ -1,5 +1,13 @@
+use crate::arp;
 use crate::ethernet;
+use crate::ipv4;
 use pcap::{Device, Error};
+use std::fs::File;
+use std::io::prelude::*;
+use std::net;
+
+const SYSFS_PATH: &'static str = "/sys/class/net/";
+const SYSFS_FILENAME: &'static str = "/address";
 
 #[derive(Clone)]
 pub enum PacketType {
@@ -10,58 +18,118 @@ pub enum PacketType {
 pub trait Packet {
     fn raw_bytes(&self) -> &Vec<u8>;
     fn packet_type(&self) -> PacketType;
+    fn dest_address(&self) -> Option<Vec<u8>>;
+    fn source_address(&self) -> Option<Vec<u8>>;
 }
 
-pub fn raw_send(packet: impl Packet) -> Result<(), Error> {
-
-    let (dest_mac,eth_type) = match packet.packet_type() {
+pub fn raw_send(bytes: &[u8]) -> Result<(), Error> {
+    /*let (dest_mac, eth_type) = match packet.packet_type() {
         PacketType::IcmpRequest => {
-            ([0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3], [0x08,0x00]) //temporary fix. dest_mac should be
-                                                                //obtained via arp.
-        },
-        PacketType::Arp => {
-            ([0xff,0xff,0xff,0xff,0xff,0xff,], [0x08,0x06])
-        },
+            ([0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3], [0x08, 0x00]) //temporary fix. dest_mac should be
+                                                                 //obtained via arp.
+        }
+        PacketType::Arp => ([0xff, 0xff, 0xff, 0xff, 0xff, 0xff], [0x08, 0x06]),
     };
 
-    let source_mac = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f]; //temporary fix. source_mac shold be
-                                                           //found via file system.
-    let eth_packet = ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac);
+    let (source_mac, _) = get_local_mac_ip();
 
-    let mut handle = Device::lookup().unwrap().open().unwrap();
+    let eth_packet =
+        ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
 
-    handle.sendpacket(&eth_packet.raw_bytes[..])
+    let mut handle = Device::lookup().unwrap().open().unwrap();*/
+
+    //let mut handle = Device::list().unwrap()[0].open().unwrap().sendpacket(bytes)
+    let handle = Device::list().unwrap().remove(0);
+    let mut cap = handle.open().unwrap();
+    cap.sendpacket(bytes)
 }
 
-pub fn get_local_mac() -> String {
-    unimplemented!();
+pub async fn send(packet: impl Packet) -> Result<(), Error>{
+    //if the dest ip is local, do arp request to get dest mac.
+    //if external, set dest mac to mac of gateway.
+    let dest_ip = net::Ipv4Addr::new(
+        packet.dest_address().unwrap()[0],
+        packet.dest_address().unwrap()[1],
+        packet.dest_address().unwrap()[2],
+        packet.dest_address().unwrap()[3],
+    );
+
+    let mut dest_mac: Vec<u8> = if dest_ip.is_private() {
+        println!("dest ip is private, get mac of target...");
+        arp::get_mac_of_target(&dest_ip.octets()).await.unwrap()
+    } else {
+        [0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3].to_vec() //need to get this programmatically
+    };
+
+    let eth_type = match packet.packet_type() {
+        PacketType::IcmpRequest => [0x08, 0x00],
+        PacketType::Arp => [0x08, 0x06],
+    };
+
+    let (source_mac, _) = get_local_mac_ip();
+    let eth_packet =
+        ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
+
+    raw_send(&eth_packet.raw_bytes[..])
+}
+
+pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
+    let mut ip_address: net::Ipv4Addr;
+
+    let mut handle = &Device::list().unwrap()[0];
+    if let net::IpAddr::V4(ip_addr) = handle.addresses[0].addr {
+        ip_address = ip_addr;
+    } else {
+        panic!();
+    }
+
+    let file_path = format!("{}{}{}", SYSFS_PATH, handle.name, SYSFS_FILENAME);
+
+    let mut file = File::open(file_path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let mac: Vec<u8> = contents
+        .strip_suffix("\n")
+        .unwrap()
+        .split(':')
+        .map(|x| u8::from_str_radix(x, 16).unwrap())
+        .collect();
+
+    (mac, ip_address)
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::raw_send;
-    use super::get_local_mac;
-    use crate::packets::IcmpRequest;
+    use super::get_local_mac_ip;
+    use super::send;
+    use crate::icmp::IcmpRequest;
     use crate::ipv4::Ipv4;
-    use crate::senders::{Packet,PacketType};
+    use crate::senders::{Packet, PacketType};
+    use std::net;
 
-    #[test]
-    fn valid_packet_sent_down_wire() {
+    #[tokio::test]
+    async fn valid_packet_gets_sent_down_wire() {
         let icmp_packet = IcmpRequest::new();
-        let ipv4_packet = Ipv4::new([192, 168, 100, 16], [8, 8, 8, 8],icmp_packet.raw_bytes().clone(), PacketType::IcmpRequest); 
-        let result = raw_send(ipv4_packet);
+        let ipv4_packet = Ipv4::new(
+            [192, 168, 100, 16],
+            [8, 8, 8, 8],
+            icmp_packet.raw_bytes().clone(),
+            PacketType::IcmpRequest,
+        );
+        let result = send(ipv4_packet);
 
-        assert!(result.is_ok());
+        assert!(result.await.is_ok());
     }
 
     #[test]
-    #[ignore]
-    fn local_mac_address_successfully_retrieved() {
-        let local_mac = "04:92:26:19:4e:4f";
-        let mac: &str = &get_local_mac();
+    fn returns_correct_ip_and_mac_for_default_device() {
+        let correct_ip: net::Ipv4Addr = net::Ipv4Addr::new(192, 168, 100, 16);
+        let correct_mac: [u8; 6] = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f];
 
-        assert_eq!(local_mac,mac);
+        let (mac, ip_addr) = get_local_mac_ip();
 
+        assert_eq!(correct_ip, ip_addr);
+        assert_eq!(&correct_mac, &mac[..]);
     }
 }

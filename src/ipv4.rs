@@ -141,6 +141,15 @@ impl Packet for Ipv4 {
     fn packet_type(&self) -> PacketType {
         self.packet_type.clone() 
     }
+
+    fn dest_address(&self) -> Option<Vec<u8>> {
+        Some(self.dest_address.to_vec())
+    }
+    
+    fn source_address(&self) -> Option<Vec<u8>> {
+        Some(self.source_address.to_vec())
+    }
+
 }
 
 #[cfg(test)]

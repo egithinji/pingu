@@ -85,7 +85,7 @@ impl<'a> TryFrom<&'a [u8]> for EthernetFrame<'a> {
 mod tests {
 
     use super::EthernetFrame;
-    use crate::packets;
+    use crate::icmp;
     use crate::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
     const DEST_MAC: [u8; 6] = [0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3];
@@ -110,7 +110,7 @@ mod tests {
             0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
         ];
 
-        let icmp_packet = packets::IcmpRequest::new();
+        let icmp_packet = icmp::IcmpRequest::new();
         let ipv4_packet = Ipv4::new([192, 168, 100, 16], [8, 8, 8, 8], icmp_packet.raw_bytes().clone(), PacketType::IcmpRequest); 
         let eth_packet = EthernetFrame::new(
             &[0x08, 0x00],

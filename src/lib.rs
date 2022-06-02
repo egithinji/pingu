@@ -1,5 +1,5 @@
 #![feature(bigint_helper_methods)]
-pub mod packets;
+pub mod icmp;
 pub mod senders;
 pub mod ethernet;
 pub mod validators;
