@@ -1,6 +1,6 @@
 use pcap;
 
-pub fn get_arp_reply(mut cap: pcap::Capture<pcap::Active>) -> Result<Vec<u8>, pcap::Error> {
+pub fn get_reply(mut cap: pcap::Capture<pcap::Active>) -> Result<Vec<u8>, pcap::Error> {
     
     println!("Starting to listen...");
     match cap.next() {
@@ -46,10 +46,10 @@ mod tests {
         .unwrap();
 
         //start listening asynchronously for arp reply
-        let handle = tokio::spawn(async { super::get_arp_reply(cap) });
+        let handle = tokio::spawn(async { super::get_reply(cap) });
 
         //send arp request
-        match senders::raw_send(arp_request) {
+        match senders::raw_send(&arp_request.raw_bytes[..]) {
             Ok(()) => {
                 println!("Packet sent successfully.");
             }

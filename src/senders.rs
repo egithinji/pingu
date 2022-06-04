@@ -23,7 +23,7 @@ pub trait Packet {
     fn source_address(&self) -> Option<Vec<u8>>;
 }
 
-pub fn raw_send(bytes: &[u8]) -> Result<(), Error> {
+pub fn raw_send(bytes: &[u8], cap) -> Result<(), Error> {
     let handle = Device::list().unwrap().remove(0);
     let mut cap = handle.open().unwrap();
     cap.sendpacket(bytes)
@@ -43,7 +43,6 @@ pub async fn send(packet: impl Packet, source_mac: Vec<u8>) -> Result<(), Error>
         println!("dest ip is private, get mac of target...");
         arp::get_mac_of_target(&dest_ip.octets()).await.unwrap()
     } else {
-        //[0xe0, 0xcc, 0x7a, 0x34, 0x3f, 0xa3].to_vec() //need to get this programmatically
         match default_net::get_default_gateway() {
             Ok(gateway) => {
                 gateway.mac_addr.octets().to_vec()
@@ -51,7 +50,6 @@ pub async fn send(packet: impl Packet, source_mac: Vec<u8>) -> Result<(), Error>
             Err(e) => {
                 panic!("Error getting default gateway:{}",e);
             }
-
         }
     };
 

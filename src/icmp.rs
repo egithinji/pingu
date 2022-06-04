@@ -2,7 +2,7 @@ use crate::senders::Packet;
 use crate::senders::PacketType;
 
 const TOTAL_LENGTH: u16 = 8 + (DATA.len() as u16); //ICMP Header + Data
-                                                        //const DATA: [u8;18] = [106, 111, 110, 32, 112, 111, 115, 116, 101, 108,32,32,32,32,32,32,32,32];
+                                                   //const DATA: [u8;18] = [106, 111, 110, 32, 112, 111, 115, 116, 101, 108,32,32,32,32,32,32,32,32];
 const DATA: [u8; 48] = [
     0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
     0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
@@ -36,7 +36,7 @@ impl IcmpRequest {
         temp = IcmpRequest::set_raw_icmp_bytes(temp);
         temp
     }
-    
+
     fn set_raw_icmp_bytes(mut icmp: IcmpRequest) -> IcmpRequest {
         let mut v: Vec<u8> = Vec::new();
 
@@ -102,23 +102,48 @@ impl Packet for IcmpRequest {
     }
 
     fn packet_type(&self) -> PacketType {
-        PacketType::IcmpRequest        
+        PacketType::IcmpRequest
     }
 
     fn dest_address(&self) -> Option<Vec<u8>> {
         None
     }
-    
+
     fn source_address(&self) -> Option<Vec<u8>> {
         None
     }
+}
 
+impl<'a> TryFrom<&'a [u8]> for IcmpRequest {
+    type Error = &'static str;
+
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        let icmp_type: u8 = bytes[0];
+        let code: u8 = bytes[1];
+        let icmp_checksum: u16 = (bytes[2] as u16).checked_shl(8).unwrap() + bytes[3] as u16;
+        let identifier: u16 = (bytes[4] as u16).checked_shl(8).unwrap() + bytes[5] as u16;
+        let sequence_number = (bytes[6] as u16).checked_shl(8).unwrap() + bytes[7] as u16;
+        let mut data: [u8; 48] = [0; 48];
+        for (i, _) in data.into_iter().enumerate() {
+            data[i] = bytes[i + 8];
+        }
+
+        Ok(IcmpRequest {
+            icmp_type,
+            code,
+            icmp_checksum,
+            identifier,
+            sequence_number,
+            data,
+            raw_icmp_bytes: Vec::new(),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::{calculate_checksum, IcmpRequest};
+    use super::{calculate_checksum, IcmpRequest, DATA};
 
     #[test]
     fn raw_icmp_bytes_works() {
@@ -145,8 +170,37 @@ mod tests {
     #[test]
     #[ignore]
     fn calculate_checksum_works() {
-    
         unimplemented!();
+    }
 
+    #[test]
+    fn valid_icmp_packet_created_from_bytes() {
+        //received_bytes are taken contents of icmp reply received from 8.8.8.8 after pinging from Linux.
+        let received_bytes = &[
+            0x00, 0x00, 0x1a, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
+            0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
+            0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+        ]
+        .to_vec()[..];
+
+        let expected = IcmpRequest {
+            icmp_type: 0,
+            code: 0,
+            icmp_checksum: 6910,
+            identifier: 0,
+            sequence_number: 0,
+            data: DATA,
+            raw_icmp_bytes: Vec::new(),
+        };
+
+        let test_icmp_packet = IcmpRequest::try_from(received_bytes).unwrap();
+
+        assert_eq!(test_icmp_packet.icmp_type, expected.icmp_type);
+        assert_eq!(test_icmp_packet.code, expected.code);
+        assert_eq!(test_icmp_packet.icmp_checksum, expected.icmp_checksum);
+        assert_eq!(test_icmp_packet.identifier, expected.identifier);
+        assert_eq!(test_icmp_packet.sequence_number, expected.sequence_number);
+        assert_eq!(test_icmp_packet.data, expected.data);
     }
 }
