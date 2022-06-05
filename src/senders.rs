@@ -1,11 +1,12 @@
 use crate::arp;
 use crate::ethernet;
 use crate::ipv4;
-use pcap::{Device, Error};
+use pcap::{Device, Error, Capture, Active};
 use std::fs::File;
 use std::io::prelude::*;
 use std::net;
 use default_net;
+use std::time::Instant;
 
 const SYSFS_PATH: &'static str = "/sys/class/net/";
 const SYSFS_FILENAME: &'static str = "/address";
@@ -23,13 +24,14 @@ pub trait Packet {
     fn source_address(&self) -> Option<Vec<u8>>;
 }
 
-pub fn raw_send(bytes: &[u8], cap) -> Result<(), Error> {
-    let handle = Device::list().unwrap().remove(0);
-    let mut cap = handle.open().unwrap();
-    cap.sendpacket(bytes)
+pub fn raw_send(bytes: &[u8], mut cap: Capture<Active>) -> Result<Instant, Error> {
+        match cap.sendpacket(bytes) {
+        Ok(()) => Ok(Instant::now()),
+        Err(e) => Err(e),
+    }
 }
 
-pub async fn send(packet: impl Packet, source_mac: Vec<u8>) -> Result<(), Error>{
+pub async fn send(packet: impl Packet, source_mac: Vec<u8>, mut cap: Capture<Active>) -> Result<Instant, Error>{
     //if the dest ip is local, do arp request to get dest mac.
     //if external, set dest mac to mac of gateway.
     let dest_ip = net::Ipv4Addr::new(
@@ -61,7 +63,7 @@ pub async fn send(packet: impl Packet, source_mac: Vec<u8>) -> Result<(), Error>
     let eth_packet =
         ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
 
-    raw_send(&eth_packet.raw_bytes[..])
+    raw_send(&eth_packet.raw_bytes[..], cap)
 }
 
 pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
@@ -98,6 +100,7 @@ mod tests {
     use crate::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
     use std::net;
+    use pcap::Device;
 
     #[tokio::test]
     async fn valid_packet_gets_sent_down_wire() {
@@ -108,7 +111,11 @@ mod tests {
             icmp_packet.raw_bytes().clone(),
             PacketType::IcmpRequest,
         );
-        let result = send(ipv4_packet, [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f].to_vec());
+        
+        let handle = Device::list().unwrap().remove(0);
+        let mut cap = handle.open().unwrap();
+
+        let result = send(ipv4_packet, [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f].to_vec(), cap);
 
         assert!(result.await.is_ok());
     }

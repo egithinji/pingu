@@ -1,13 +1,14 @@
-use pingu::arp;
+use pcap::Device;
 use pingu::icmp::IcmpRequest;
 use pingu::ipv4;
 use pingu::receivers;
 use pingu::senders;
 use pingu::senders::{Packet, PacketType};
-use pingu::validators;
+use pingu::ethernet;
 use std::env;
 use std::net;
 use std::thread;
+use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
@@ -33,6 +34,19 @@ async fn main() {
         PacketType::IcmpRequest,
     );
 
+    //get an active capture on first device
+    let device = Device::list().unwrap().remove(0);
+    let mut cap = device.open().unwrap();
+
+    //create filter to listen for replies
+    let filter = format!(
+        "icmp and src host {} and dst host {}",
+        dest_ip.to_string(),
+        local_ip.to_string()
+    );
+
+    cap.filter(&filter, true).unwrap();
+
     //start listening for reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -41,12 +55,35 @@ async fn main() {
         tx.send(ethernet_packet);
     });
 
-    match senders::send(ipv4_packet, local_mac).await {
-        Ok(()) => {
-            println!("Packet sent successfully.")
+    //get capture on same device as above
+    //this is a temporary fix. Will need to find way of sharing same cap.
+    let handle = Device::list().unwrap().remove(0);
+    let mut cap2 = handle.open().unwrap();
+
+    //start the timer
+    //let now = Instant::now();
+    let now: Instant = match senders::send(ipv4_packet, local_mac, cap2).await {
+        Ok(instant) => {
+            //println!("Packet sent successfully.")
+            instant
         }
         Err(e) => {
-            println!("Error sending packet to socket: {}", e);
+            //println!("Error sending packet to socket: {}", e);
+            panic!("Error sending packet to socket: {e}");
         }
-    }
+    };
+
+    //listen for replies and print to stdo
+    //await the reply from the channel
+    match rx.await {
+        Ok(v) => {
+            let elapsed_time = now.elapsed().as_millis();
+            let e = v.unwrap();
+            let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
+            println!("Received packet from {}. Round-trip time: {:?}",receivers::print_reply(&ethernet_packet.raw_bytes[..]),elapsed_time);
+        },
+        Err(e) => {
+            println!("Something bad happened:{e}");
+        }
+    };
 }

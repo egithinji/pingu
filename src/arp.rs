@@ -2,6 +2,7 @@ use crate::senders::Packet;
 use crate::senders::PacketType;
 use crate::{ethernet, receivers, senders};
 use pcap;
+use pcap::Device;
 use std::{thread, time};
 
 pub struct ArpRequest {
@@ -108,8 +109,12 @@ pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str
         &source_mac[..],
     );
 
-    match senders::raw_send(&eth_packet.raw_bytes[..]) {
-        Ok(()) => {
+    //get an active capture on first device
+    let handle = Device::list().unwrap().remove(0);
+    let mut cap = handle.open().unwrap();
+
+    match senders::raw_send(&eth_packet.raw_bytes[..], cap) {
+        Ok(_) => {
             println!("arp broadcast sent successfully.")
         }
         Err(e) => {
