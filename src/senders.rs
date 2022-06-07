@@ -1,15 +1,11 @@
 use crate::arp;
 use crate::ethernet;
 use crate::ipv4;
-use pcap::{Device, Error, Capture, Active};
-use std::fs::File;
-use std::io::prelude::*;
-use std::net;
 use default_net;
+use pcap::{Active, Capture, Device, Error};
+use std::net;
 use std::time::Instant;
-
-const SYSFS_PATH: &'static str = "/sys/class/net/";
-const SYSFS_FILENAME: &'static str = "/address";
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 pub enum PacketType {
@@ -24,15 +20,30 @@ pub trait Packet {
     fn source_address(&self) -> Option<Vec<u8>>;
 }
 
-pub fn raw_send(bytes: &[u8], mut cap: Capture<Active>) -> Result<Instant, Error> {
-        match cap.sendpacket(bytes) {
-        Ok(()) => Ok(Instant::now()),
+pub fn raw_send(bytes: &[u8], cap: Arc<Mutex<Capture<Active>>>) -> Result<Instant, Error> {
+    //get capture on device 
+    //println!("Getting handle to device from raw_send...");
+    //let handle = Device::list().unwrap().remove(0);
+    println!("Opening capture on device...");
+    //let mut cap = handle.open().unwrap();
+
+    let mut cap = cap.lock().unwrap();
+
+    match cap.sendpacket(bytes) {
+        Ok(()) => {
+            println!("Packet sent ********************************************");
+            Ok(Instant::now())
+        }
         Err(e) => Err(e),
     }
 }
 
-pub async fn send(packet: impl Packet, source_mac: Vec<u8>, mut cap: Capture<Active>) -> Result<Instant, Error>{
-    //if the dest ip is local, do arp request to get dest mac.
+pub async fn send(
+    packet: impl Packet,
+    source_mac: Vec<u8>,
+    cap: Arc<Mutex<Capture<Active>>>,
+) -> Result<Instant, Error> {
+    //if dest ip is local, do arp request to get dest mac.
     //if external, set dest mac to mac of gateway.
     let dest_ip = net::Ipv4Addr::new(
         packet.dest_address().unwrap()[0],
@@ -41,16 +52,24 @@ pub async fn send(packet: impl Packet, source_mac: Vec<u8>, mut cap: Capture<Act
         packet.dest_address().unwrap()[3],
     );
 
+    let cap2 = Arc::clone(&cap);
+
     let mut dest_mac: Vec<u8> = if dest_ip.is_private() {
         println!("dest ip is private, get mac of target...");
-        arp::get_mac_of_target(&dest_ip.octets()).await.unwrap()
+        arp::get_mac_of_target(
+            &dest_ip.octets(),
+            &source_mac,
+            &packet.source_address().unwrap()[..],
+            cap
+        )
+        .await
+        .unwrap()
     } else {
+        println!("dest ip is public, get mac of default gateway...");
         match default_net::get_default_gateway() {
-            Ok(gateway) => {
-                gateway.mac_addr.octets().to_vec()
-            },
+            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
             Err(e) => {
-                panic!("Error getting default gateway:{}",e);
+                panic!("Error getting default gateway:{}", e);
             }
         }
     };
@@ -63,46 +82,21 @@ pub async fn send(packet: impl Packet, source_mac: Vec<u8>, mut cap: Capture<Act
     let eth_packet =
         ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
 
-    raw_send(&eth_packet.raw_bytes[..], cap)
-}
-
-pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
-    let mut ip_address: net::Ipv4Addr;
-
-    let mut handle = &Device::list().unwrap()[0];
-    if let net::IpAddr::V4(ip_addr) = handle.addresses[0].addr {
-        ip_address = ip_addr;
-    } else {
-        panic!();
-    }
-
-    let file_path = format!("{}{}{}", SYSFS_PATH, handle.name, SYSFS_FILENAME);
-
-    let mut file = File::open(file_path).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let mac: Vec<u8> = contents
-        .strip_suffix("\n")
-        .unwrap()
-        .split(':')
-        .map(|x| u8::from_str_radix(x, 16).unwrap())
-        .collect();
-
-    (mac, ip_address)
+    raw_send(&eth_packet.raw_bytes[..], cap2)
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::get_local_mac_ip;
     use super::send;
     use crate::icmp::IcmpRequest;
     use crate::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
-    use std::net;
     use pcap::Device;
+    use std::net;
 
     #[tokio::test]
+    #[ignore]
     async fn valid_packet_gets_sent_down_wire() {
         let icmp_packet = IcmpRequest::new();
         let ipv4_packet = Ipv4::new(
@@ -111,23 +105,20 @@ mod tests {
             icmp_packet.raw_bytes().clone(),
             PacketType::IcmpRequest,
         );
-        
+
         let handle = Device::list().unwrap().remove(0);
         let mut cap = handle.open().unwrap();
 
-        let result = send(ipv4_packet, [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f].to_vec(), cap);
+        let result = send(
+            ipv4_packet,
+            [0x00, 0x00, 0x00, 0x00, 0x00, 0x00].to_vec(),
+        ); //replace
+           //with
+           //real
+           //mac
+           //when
+           //testing
 
         assert!(result.await.is_ok());
-    }
-
-    #[test]
-    fn returns_correct_ip_and_mac_for_default_device() {
-        let correct_ip: net::Ipv4Addr = net::Ipv4Addr::new(192, 168, 100, 16);
-        let correct_mac: [u8; 6] = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f];
-
-        let (mac, ip_addr) = get_local_mac_ip();
-
-        assert_eq!(correct_ip, ip_addr);
-        assert_eq!(&correct_mac, &mac[..]);
     }
 }

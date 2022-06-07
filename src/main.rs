@@ -1,12 +1,13 @@
-use pcap::Device;
+use pingu::ethernet;
 use pingu::icmp::IcmpRequest;
 use pingu::ipv4;
-use pingu::receivers;
+use pingu::listeners;
 use pingu::senders;
 use pingu::senders::{Packet, PacketType};
-use pingu::ethernet;
+use pingu::utilities;
 use std::env;
 use std::net;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
@@ -24,7 +25,7 @@ async fn main() {
         }
     };
 
-    let (local_mac, local_ip) = senders::get_local_mac_ip();
+    let (local_mac, local_ip) = utilities::get_local_mac_ip();
 
     let icmp_packet = IcmpRequest::new();
     let ipv4_packet = ipv4::Ipv4::new(
@@ -34,10 +35,6 @@ async fn main() {
         PacketType::IcmpRequest,
     );
 
-    //get an active capture on first device
-    let device = Device::list().unwrap().remove(0);
-    let mut cap = device.open().unwrap();
-
     //create filter to listen for replies
     let filter = format!(
         "icmp and src host {} and dst host {}",
@@ -45,30 +42,27 @@ async fn main() {
         local_ip.to_string()
     );
 
+    let handle = pcap::Device::list().unwrap().remove(0);
+    let mut cap = handle.open().unwrap();
+    //let pointer_to_cap = &mut cap;
     cap.filter(&filter, true).unwrap();
-
+    cap = cap.setnonblock().unwrap();
+    let cap = Arc::new(Mutex::new(cap));
+    let cap2 = Arc::clone(&cap);
     //start listening for reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
-    thread::spawn(|| {
-        let ethernet_packet = receivers::get_reply(cap);
-        tx.send(ethernet_packet);
+    thread::spawn(move || loop {
+        let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
+        if ethernet_packet.is_ok() {
+            tx.send(ethernet_packet);
+            break;
+        }
     });
 
-    //get capture on same device as above
-    //this is a temporary fix. Will need to find way of sharing same cap.
-    let handle = Device::list().unwrap().remove(0);
-    let mut cap2 = handle.open().unwrap();
-
-    //start the timer
-    //let now = Instant::now();
     let now: Instant = match senders::send(ipv4_packet, local_mac, cap2).await {
-        Ok(instant) => {
-            //println!("Packet sent successfully.")
-            instant
-        }
+        Ok(instant) => instant,
         Err(e) => {
-            //println!("Error sending packet to socket: {}", e);
             panic!("Error sending packet to socket: {e}");
         }
     };
@@ -80,8 +74,12 @@ async fn main() {
             let elapsed_time = now.elapsed().as_millis();
             let e = v.unwrap();
             let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
-            println!("Received packet from {}. Round-trip time: {:?}",receivers::print_reply(&ethernet_packet.raw_bytes[..]),elapsed_time);
-        },
+            println!(
+                "Received packet from {}. Round-trip time: {:?}",
+                listeners::print_reply(&ethernet_packet.raw_bytes[..]),
+                elapsed_time
+            );
+        }
         Err(e) => {
             println!("Something bad happened:{e}");
         }

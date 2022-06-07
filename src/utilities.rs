@@ -1,3 +1,36 @@
+use pcap::Device;
+use std::net;
+use std::fs::File;
+use std::io::prelude::*;
+
+const SYSFS_PATH: &'static str = "/sys/class/net/";
+const SYSFS_FILENAME: &'static str = "/address";
+
+pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
+    let mut ip_address: net::Ipv4Addr;
+
+    let mut handle = &Device::list().unwrap()[0];
+    if let net::IpAddr::V4(ip_addr) = handle.addresses[0].addr {
+        ip_address = ip_addr;
+    } else {
+        panic!();
+    }
+
+    let file_path = format!("{}{}{}", SYSFS_PATH, handle.name, SYSFS_FILENAME);
+
+    let mut file = File::open(file_path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let mac: Vec<u8> = contents
+        .strip_suffix("\n")
+        .unwrap()
+        .split(':')
+        .map(|x| u8::from_str_radix(x, 16).unwrap())
+        .collect();
+
+    (mac, ip_address)
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Ipv4ValidationError {
     TotalOctetsIncorrect,
@@ -6,7 +39,6 @@ pub enum Ipv4ValidationError {
 }
 
 pub fn ipv4(address: &str) -> Result<(), Ipv4ValidationError> {
-
     for char in address.chars() {
         if !(char.is_numeric() || char == '.') {
             return Err(Ipv4ValidationError::InvalidCharacter);
@@ -22,7 +54,7 @@ pub fn ipv4(address: &str) -> Result<(), Ipv4ValidationError> {
         match octet.parse::<u8>() {
             Ok(_) => {
                 //
-            },
+            }
             Err(_) => {
                 return Err(Ipv4ValidationError::IncorrectRange);
             }
@@ -30,12 +62,12 @@ pub fn ipv4(address: &str) -> Result<(), Ipv4ValidationError> {
     }
 
     Ok(())
-
 }
 
 #[cfg(test)]
 mod tests {
 
+    use super::get_local_mac_ip;
     use super::Ipv4ValidationError;
     use crate::validators;
 
@@ -59,7 +91,6 @@ mod tests {
             validators::ipv4(ip_addr3),
             Err(Ipv4ValidationError::InvalidCharacter)
         );
-
     }
 
     #[test]
@@ -89,12 +120,24 @@ mod tests {
             validators::ipv4(ip_addr2),
             Err(Ipv4ValidationError::IncorrectRange)
         );
-
     }
 
     #[test]
     fn valid_ipv4address_passes() {
         let ip_addr: &str = "192.168.100.100";
         assert!(validators::ipv4(ip_addr).is_ok());
+    }
+
+    #[test]
+    #[ignore]
+    fn returns_correct_ip_and_mac_for_default_device() {
+        let correct_ip: net::Ipv4Addr = net::Ipv4Addr::new(192, 168, 100, 16);
+        let correct_mac: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]; //replace with real mac
+                                                                         //when testing
+
+        let (mac, ip_addr) = get_local_mac_ip();
+
+        assert_eq!(correct_ip, ip_addr);
+        assert_eq!(&correct_mac, &mac[..]);
     }
 }

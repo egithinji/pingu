@@ -82,7 +82,6 @@ impl Ipv4 {
 
         //protocol
         v.extend_from_slice(&ipv4.protocol.to_be_bytes());
-        println!("Protocol as bytes: {:?}", &ipv4.protocol.to_be_bytes());
 
         //header checksum
         v.extend_from_slice(&ipv4.header_checksum.to_be_bytes());

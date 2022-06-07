@@ -2,7 +2,7 @@
 pub mod icmp;
 pub mod senders;
 pub mod ethernet;
-pub mod validators;
+pub mod utilities;
 pub mod arp;
-pub mod receivers;
+pub mod listeners;
 pub mod ipv4;

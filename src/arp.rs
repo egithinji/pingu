@@ -1,25 +1,26 @@
 use crate::senders::Packet;
 use crate::senders::PacketType;
-use crate::{ethernet, receivers, senders};
+use crate::{ethernet, listeners, senders};
 use pcap;
-use pcap::Device;
+use pcap::{Active, Capture, Device};
+use std::sync::{Arc, Mutex};
 use std::{thread, time};
 
-pub struct ArpRequest {
-    htype: u16,   //hardware type
-    ptype: u16,   //protocol type
-    hlen: u8,     //hardware address length
-    plen: u8,     //protocol address length
-    oper: u16,    //operation
-    sha: [u8; 6], //sender hardware address
-    spa: [u8; 4], //sender protocol address
-    tha: [u8; 6], //target hardware address
-    tpa: [u8; 4], //target protocol address
+pub struct ArpRequest<'a> {
+    htype: u16, //hardware type
+    ptype: u16, //protocol type
+    hlen: u8,   //hardware address length
+    plen: u8,   //protocol address length
+    oper: u16,  //operation
+    sha: &'a [u8],
+    spa: &'a [u8],
+    tha: &'a [u8],
+    tpa: &'a [u8],
     pub raw_bytes: Vec<u8>,
 }
 
-impl ArpRequest {
-    pub fn new(local_mac: [u8; 6], local_ip: [u8; 4], dest_ip: [u8; 4]) -> Self {
+impl<'a> ArpRequest<'a> {
+    pub fn new(local_mac: &'a [u8], local_ip: &'a [u8], dest_ip: &'a [u8]) -> Self {
         let mut temp = ArpRequest {
             htype: 1,
             ptype: 0x0800,
@@ -28,7 +29,7 @@ impl ArpRequest {
             oper: 1,
             sha: local_mac,
             spa: local_ip,
-            tha: [0, 0, 0, 0, 0, 0],
+            tha: &[0, 0, 0, 0, 0, 0],
             tpa: dest_ip,
             raw_bytes: Vec::new(),
         };
@@ -53,7 +54,7 @@ impl ArpRequest {
     }
 }
 
-impl Packet for ArpRequest {
+impl<'a> Packet for ArpRequest<'a> {
     fn raw_bytes(&self) -> &Vec<u8> {
         &self.raw_bytes
     }
@@ -71,34 +72,31 @@ impl Packet for ArpRequest {
     }
 }
 
-pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str> {
-    let source_mac = [0x04, 0x92, 0x26, 0x19, 0x4e, 0x4f];
-    let arp_request = ArpRequest::new(
-        source_mac,
-        [192, 168, 100, 16],
-        [target_ip[0], target_ip[1], target_ip[2], target_ip[3]],
+pub async fn get_mac_of_target(
+    target_ip: &[u8],
+    source_mac: &[u8],
+    source_ip: &[u8],
+    cap: Arc<Mutex<Capture<Active>>>,
+) -> Result<Vec<u8>, &'static str> {
+    let cap2 = Arc::clone(&cap);
+
+    let arp_request = ArpRequest::new(source_mac, source_ip, target_ip);
+
+    // filter for arp replies to this host.
+    let filter = format!(
+        "(arp[6:2] = 2) and ether dst {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
+        source_mac[0], source_mac[1], source_mac[2], source_mac[3], source_mac[4], source_mac[5]
     );
-
-    let mut cap = pcap::Capture::from_device("enp2s0") //need to get device name and mac address
-        //from system and pass this here.
-        .unwrap()
-        .immediate_mode(true)
-        .open()
-        .unwrap();
-
-    // filter for arp replies to this host and from a particular host.
-    // need to use mac address retrieved from file.
-    let filter =
-        "(arp[6:2] = 2) and ether dst 04:92:26:19:4e:4f and not ether src e0:cc:7a:34:3f:a3";
-
-    cap.filter(&filter, true).unwrap();
 
     //start listening for arp reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
-    thread::spawn(|| {
-        let ethernet_packet = receivers::get_reply(cap);
-        tx.send(ethernet_packet);
+    thread::spawn(move || loop {
+        let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
+        if ethernet_packet.is_ok() {
+            tx.send(ethernet_packet);
+            break;
+        }
     });
 
     //send the packet
@@ -109,11 +107,7 @@ pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str
         &source_mac[..],
     );
 
-    //get an active capture on first device
-    let handle = Device::list().unwrap().remove(0);
-    let mut cap = handle.open().unwrap();
-
-    match senders::raw_send(&eth_packet.raw_bytes[..], cap) {
+    match senders::raw_send(&eth_packet.raw_bytes[..], cap2) {
         Ok(_) => {
             println!("arp broadcast sent successfully.")
         }
@@ -133,7 +127,7 @@ pub async fn get_mac_of_target(target_ip: &[u8]) -> Result<Vec<u8>, &'static str
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for ArpRequest {
+impl<'a> TryFrom<&'a [u8]> for ArpRequest<'a> {
     type Error = &'static str;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
@@ -142,14 +136,6 @@ impl<'a> TryFrom<&'a [u8]> for ArpRequest {
         let hlen: u8 = bytes[4];
         let plen: u8 = bytes[5];
         let oper: u16 = (bytes[6] as u16).checked_shl(8).unwrap() + bytes[7] as u16;
-        let sha: [u8; 6] = [
-            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13],
-        ];
-        let spa: [u8; 4] = [bytes[14], bytes[15], bytes[16], bytes[17]];
-        let tha: [u8; 6] = [
-            bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23],
-        ];
-        let tpa: [u8; 4] = [bytes[24], bytes[25], bytes[26], bytes[27]];
 
         Ok(ArpRequest {
             htype,
@@ -157,10 +143,10 @@ impl<'a> TryFrom<&'a [u8]> for ArpRequest {
             hlen,
             plen,
             oper,
-            sha,
-            spa,
-            tha,
-            tpa,
+            sha: &bytes[8..14],
+            spa: &bytes[14..18],
+            tha: &bytes[18..24],
+            tpa: &bytes[24..28],
             raw_bytes: Vec::new(),
         })
     }
@@ -180,15 +166,14 @@ mod tests {
         let ref_bytes: [u8; 28] = [
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ];//when testing replace with real macaddress
-
+        ]; //when testing replace with real macaddress
 
         let local_mac: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]; //when testing replace with real macaddress
 
         let local_ip: [u8; 4] = [192, 168, 100, 16];
         let dest_ip: [u8; 4] = [192, 168, 100, 97];
 
-        let arp_request: ArpRequest = ArpRequest::new(local_mac, local_ip, dest_ip);
+        let arp_request: ArpRequest = ArpRequest::new(&local_mac, &local_ip, &dest_ip);
 
         assert_eq!(&arp_request.raw_bytes[..], ref_bytes);
     }
@@ -200,7 +185,13 @@ mod tests {
         let target_mac = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0]; //when testing replace with real mac
                                                          //address
 
-        let mac: &[u8] = &get_mac_of_target(&target_ip).await.unwrap();
+        let source_mac = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+
+        let source_ip = [192, 168, 100, 16];
+
+        let mac: &[u8] = &get_mac_of_target(&target_ip, &source_mac, &source_ip)
+            .await
+            .unwrap();
 
         assert_eq!(&target_mac, mac);
     }
@@ -221,10 +212,10 @@ mod tests {
             hlen: 6,
             plen: 4,
             oper: 2, //coz we're capturing a reply not a request
-            sha: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
-            spa: [192,168,100,131],
-            tha: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
-            tpa: [192,168,100,16],
+            sha: &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
+            spa: &[192, 168, 100, 131],
+            tha: &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
+            tpa: &[192, 168, 100, 16],
             raw_bytes: Vec::new(),
         };
 
