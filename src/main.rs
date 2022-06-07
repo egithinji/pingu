@@ -44,19 +44,21 @@ async fn main() {
 
     let handle = pcap::Device::list().unwrap().remove(0);
     let mut cap = handle.open().unwrap();
-    //let pointer_to_cap = &mut cap;
     cap.filter(&filter, true).unwrap();
     cap = cap.setnonblock().unwrap();
     let cap = Arc::new(Mutex::new(cap));
     let cap2 = Arc::clone(&cap);
+
     //start listening for reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
-    thread::spawn(move || loop {
-        let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
-        if ethernet_packet.is_ok() {
-            tx.send(ethernet_packet);
-            break;
+    tokio::spawn(async move {
+        loop {
+            let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
+            if ethernet_packet.is_ok() {
+                tx.send(ethernet_packet);
+                break;
+            }
         }
     });
 

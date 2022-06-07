@@ -112,7 +112,7 @@ pub async fn get_mac_of_target(
             println!("arp broadcast sent successfully.")
         }
         Err(e) => {
-            println!("error sending arp broadcast: {}", e)
+            println!("error sending arp broadcast: {e}")
         }
     }
 
@@ -123,7 +123,7 @@ pub async fn get_mac_of_target(
             let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
             Ok(ethernet_packet.source_mac.to_vec())
         }
-        Err(_) => Err("something bad happened"),
+        Err(_) => Err("Something bad happened"),
     }
 }
 
