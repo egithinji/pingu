@@ -1,3 +1,4 @@
+use pingu::arp;
 use pingu::ethernet;
 use pingu::icmp::IcmpRequest;
 use pingu::ipv4;
@@ -35,55 +36,36 @@ async fn main() {
         PacketType::IcmpRequest,
     );
 
-    //create filter to listen for replies
-    let filter = format!(
-        "icmp and src host {} and dst host {}",
-        dest_ip.to_string(),
-        local_ip.to_string(),
-    );
-
-    let handle = pcap::Device::list().unwrap().remove(0);
-    let mut cap = handle.open().unwrap();
-    cap.filter(&filter, true).unwrap();
-    cap = cap.setnonblock().unwrap();
-    let cap = Arc::new(Mutex::new(cap));
-    let cap2 = Arc::clone(&cap);
-
-    //start listening for reply in dedicated thread
-    //send reply when received
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    tokio::spawn(async move {
-        loop {
-            let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
-            if ethernet_packet.is_ok() {
-                tx.send(ethernet_packet);
-                break;
+    let dest_mac: Vec<u8> = if dest_ip.is_private() {
+        println!("dest ip is private, get mac of target...");
+        arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &local_ip.octets())
+            .await
+            .unwrap()
+    } else {
+        println!("dest ip is public, get mac of default gateway...");
+        match default_net::get_default_gateway() {
+            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
+            Err(e) => {
+                panic!("Error getting default gateway:{}", e);
             }
         }
-    });
-
-    let now: Instant = match senders::send(ipv4_packet, local_mac, cap2).await {
-        Ok(instant) => instant,
-        Err(e) => {
-            panic!("Error sending packet to socket: {e}");
-        }
     };
 
-    //listen for replies and print to stdo
-    //await the reply from the channel
-    match rx.await {
-        Ok(v) => {
-            let elapsed_time = now.elapsed().as_millis();
-            let e = v.unwrap();
-            let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
-            println!(
-                "Received packet from {}. Round-trip time: {:?}",
-                listeners::print_reply(&ethernet_packet.raw_bytes[..]),
-                elapsed_time
-            );
-        }
-        Err(e) => {
-            println!("Something bad happened:{e}");
-        }
-    };
+    println!("Destination mac is : {:?}", dest_mac);
+
+    let eth_packet = ethernet::EthernetFrame::new(
+        &[0x08, 0x00],
+        &ipv4_packet.raw_bytes(),
+        &dest_mac,
+        &local_mac[..],
+    );
+
+    let (response, roundtrip) = listeners::request_and_response(eth_packet).await.unwrap();
+
+    let ethernet_packet = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
+    println!(
+        "Received packet from {}. Round-trip time: {}",
+        listeners::print_reply(&ethernet_packet.raw_bytes[..]),
+        roundtrip
+    );
 }

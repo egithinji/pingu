@@ -11,7 +11,7 @@ const DATA: [u8; 48] = [
 
 pub struct IcmpRequest {
     icmp_type: u8,
-    code: u8,
+    pub code: u8,
     icmp_checksum: u16,
     identifier: u16,
     sequence_number: u16,

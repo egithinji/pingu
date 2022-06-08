@@ -1,3 +1,4 @@
+use crate::senders::{Packet,PacketType};
 use crc32fast;
 
 pub struct EthernetFrame<'a> {
@@ -80,6 +81,26 @@ impl<'a> TryFrom<&'a [u8]> for EthernetFrame<'a> {
                 Err("Ethernet packet not recognized.")},
         }
     }
+}
+
+impl<'a> Packet for EthernetFrame<'a> {
+
+    fn raw_bytes(&self) -> &Vec<u8> {
+        self.raw_bytes()
+    }
+
+    fn packet_type(&self) -> PacketType {
+        PacketType::Ethernet
+    }
+
+    fn dest_address(&self) -> Option<Vec<u8>> {
+        Some(self.dest_mac.to_vec())
+    }
+
+    fn source_address(&self) -> Option<Vec<u8>> {
+        Some(self.source_mac.to_vec())
+    }
+    
 }
 
 mod tests {

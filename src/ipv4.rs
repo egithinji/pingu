@@ -8,7 +8,7 @@ pub struct Ipv4 {
     ihl: u16,
     type_of_service: u8,
     total_length: u16,
-    identification: u16,
+    pub identification: u16,
     flags: u8,
     fragment_offset: u16,
     ttl: u8,

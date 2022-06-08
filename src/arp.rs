@@ -7,12 +7,12 @@ use std::sync::{Arc, Mutex};
 use std::{thread, time};
 
 pub struct ArpRequest<'a> {
-    htype: u16, //hardware type
-    ptype: u16, //protocol type
-    hlen: u8,   //hardware address length
-    plen: u8,   //protocol address length
-    oper: u16,  //operation
-    sha: &'a [u8],
+    htype: u16,    //hardware type
+    ptype: u16,    //protocol type
+    hlen: u8,      //hardware address length
+    plen: u8,      //protocol address length
+    pub oper: u16, //operation
+    pub sha: &'a [u8],
     spa: &'a [u8],
     tha: &'a [u8],
     tpa: &'a [u8],
@@ -64,11 +64,11 @@ impl<'a> Packet for ArpRequest<'a> {
     }
 
     fn dest_address(&self) -> Option<Vec<u8>> {
-        None
+        Some(self.tpa.to_vec())
     }
 
     fn source_address(&self) -> Option<Vec<u8>> {
-        None
+        Some(self.spa.to_vec())
     }
 }
 
@@ -76,34 +76,8 @@ pub async fn get_mac_of_target(
     target_ip: &[u8],
     source_mac: &[u8],
     source_ip: &[u8],
-    //cap: Arc<Mutex<Capture<Active>>>,
 ) -> Result<Vec<u8>, &'static str> {
-
-
     let arp_request = ArpRequest::new(source_mac, source_ip, target_ip);
-    
-    let filter = format!("(arp[6:2] = 2) and ether dst {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",source_mac[0], source_mac[1], source_mac[2], source_mac[3], source_mac[4], source_mac[5]
-);
-
-    let handle = pcap::Device::list().unwrap().remove(0);
-    let mut cap = handle.open().unwrap();
-    cap.filter(&filter, true).unwrap();
-    cap = cap.setnonblock().unwrap();
-    let cap = Arc::new(Mutex::new(cap));
-    let cap2 = Arc::clone(&cap);
-
-    //start listening for arp reply in dedicated thread
-    //send reply when received
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    tokio::spawn(async move {
-        loop {
-            let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
-            if ethernet_packet.is_ok() {
-                tx.send(ethernet_packet);
-                break;
-            }
-        }
-    });
 
     //send the packet
     let eth_packet = ethernet::EthernetFrame::new(
@@ -113,25 +87,9 @@ pub async fn get_mac_of_target(
         &source_mac[..],
     );
 
-    match senders::raw_send(&eth_packet.raw_bytes[..], cap2) {
-        Ok(_) => {
-            println!("arp broadcast sent successfully.")
-        }
-        Err(e) => {
-            println!("error sending arp broadcast: {e}")
-        }
-    }
-
-    //await the reply from the channel
-    match rx.await {
-        Ok(v) => {
-            println!("Received arp response...");
-            let e = v.unwrap();
-            let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
-            Ok(ethernet_packet.source_mac.to_vec())
-        }
-        Err(_) => Err("Something bad happened"),
-    }
+    let (response, _) = listeners::request_and_response(eth_packet).await.unwrap();
+    let arp_reply = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
+    Ok(arp_reply.source_mac.to_vec())
 }
 
 impl<'a> TryFrom<&'a [u8]> for ArpRequest<'a> {

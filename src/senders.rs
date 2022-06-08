@@ -7,10 +7,11 @@ use std::net;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PacketType {
     IcmpRequest,
     Arp,
+    Ethernet,
 }
 
 pub trait Packet {
@@ -34,56 +35,9 @@ pub fn raw_send(bytes: &[u8], cap: Arc<Mutex<Capture<Active>>>) -> Result<Instan
     }
 }
 
-pub async fn send(
-    packet: impl Packet,
-    source_mac: Vec<u8>,
-    cap: Arc<Mutex<Capture<Active>>>,
-) -> Result<Instant, Error> {
-    //if dest ip is local, do arp request to get dest mac.
-    //if external, set dest mac to mac of gateway.
-    let dest_ip = net::Ipv4Addr::new(
-        packet.dest_address().unwrap()[0],
-        packet.dest_address().unwrap()[1],
-        packet.dest_address().unwrap()[2],
-        packet.dest_address().unwrap()[3],
-    );
-
-    let cap2 = Arc::clone(&cap);
-
-    let mut dest_mac: Vec<u8> = if dest_ip.is_private() {
-        println!("dest ip is private, get mac of target...");
-        arp::get_mac_of_target(
-            &dest_ip.octets(),
-            &source_mac,
-            &packet.source_address().unwrap()[..],
-        )
-        .await
-        .unwrap()
-    } else {
-        println!("dest ip is public, get mac of default gateway...");
-        match default_net::get_default_gateway() {
-            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
-            Err(e) => {
-                panic!("Error getting default gateway:{}", e);
-            }
-        }
-    };
-
-    let eth_type = match packet.packet_type() {
-        PacketType::IcmpRequest => [0x08, 0x00],
-        PacketType::Arp => [0x08, 0x06],
-    };
-
-    let eth_packet =
-        ethernet::EthernetFrame::new(&eth_type, &packet.raw_bytes(), &dest_mac, &source_mac[..]);
-
-    raw_send(&eth_packet.raw_bytes[..], cap2)
-}
-
 #[cfg(test)]
 mod tests {
 
-    use super::send;
     use crate::icmp::IcmpRequest;
     use crate::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
