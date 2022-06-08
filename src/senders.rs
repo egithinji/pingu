@@ -21,11 +21,7 @@ pub trait Packet {
 }
 
 pub fn raw_send(bytes: &[u8], cap: Arc<Mutex<Capture<Active>>>) -> Result<Instant, Error> {
-    //get capture on device 
-    //println!("Getting handle to device from raw_send...");
-    //let handle = Device::list().unwrap().remove(0);
-    println!("Opening capture on device...");
-    //let mut cap = handle.open().unwrap();
+    println!("Opening lock on capture...");
 
     let mut cap = cap.lock().unwrap();
 
@@ -60,7 +56,6 @@ pub async fn send(
             &dest_ip.octets(),
             &source_mac,
             &packet.source_address().unwrap()[..],
-            cap
         )
         .await
         .unwrap()

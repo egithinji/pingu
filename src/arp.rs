@@ -76,26 +76,32 @@ pub async fn get_mac_of_target(
     target_ip: &[u8],
     source_mac: &[u8],
     source_ip: &[u8],
-    cap: Arc<Mutex<Capture<Active>>>,
+    //cap: Arc<Mutex<Capture<Active>>>,
 ) -> Result<Vec<u8>, &'static str> {
-    let cap2 = Arc::clone(&cap);
+
 
     let arp_request = ArpRequest::new(source_mac, source_ip, target_ip);
+    
+    let filter = format!("(arp[6:2] = 2) and ether dst {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",source_mac[0], source_mac[1], source_mac[2], source_mac[3], source_mac[4], source_mac[5]
+);
 
-    // filter for arp replies to this host.
-    let filter = format!(
-        "(arp[6:2] = 2) and ether dst {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-        source_mac[0], source_mac[1], source_mac[2], source_mac[3], source_mac[4], source_mac[5]
-    );
+    let handle = pcap::Device::list().unwrap().remove(0);
+    let mut cap = handle.open().unwrap();
+    cap.filter(&filter, true).unwrap();
+    cap = cap.setnonblock().unwrap();
+    let cap = Arc::new(Mutex::new(cap));
+    let cap2 = Arc::clone(&cap);
 
     //start listening for arp reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
-    thread::spawn(move || loop {
-        let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
-        if ethernet_packet.is_ok() {
-            tx.send(ethernet_packet);
-            break;
+    tokio::spawn(async move {
+        loop {
+            let ethernet_packet = listeners::get_one_reply(Arc::clone(&cap));
+            if ethernet_packet.is_ok() {
+                tx.send(ethernet_packet);
+                break;
+            }
         }
     });
 
@@ -119,6 +125,7 @@ pub async fn get_mac_of_target(
     //await the reply from the channel
     match rx.await {
         Ok(v) => {
+            println!("Received arp response...");
             let e = v.unwrap();
             let ethernet_packet = ethernet::EthernetFrame::try_from(&e[..]).unwrap();
             Ok(ethernet_packet.source_mac.to_vec())

@@ -39,7 +39,7 @@ async fn main() {
     let filter = format!(
         "icmp and src host {} and dst host {}",
         dest_ip.to_string(),
-        local_ip.to_string()
+        local_ip.to_string(),
     );
 
     let handle = pcap::Device::list().unwrap().remove(0);
