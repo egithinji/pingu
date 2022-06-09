@@ -1,9 +1,4 @@
-use crate::arp;
-use crate::ethernet;
-use crate::ipv4;
-use default_net;
-use pcap::{Active, Capture, Device, Error};
-use std::net;
+use pcap::{Active, Capture, Error};
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 

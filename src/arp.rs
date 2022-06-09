@@ -1,10 +1,6 @@
 use crate::senders::Packet;
 use crate::senders::PacketType;
-use crate::{ethernet, listeners, senders};
-use pcap;
-use pcap::{Active, Capture, Device};
-use std::sync::{Arc, Mutex};
-use std::{thread, time};
+use crate::{ethernet, utilities};
 
 pub struct ArpRequest<'a> {
     htype: u16,    //hardware type
@@ -45,10 +41,10 @@ impl<'a> ArpRequest<'a> {
         v.extend_from_slice(&arp_request.hlen.to_be_bytes());
         v.extend_from_slice(&arp_request.plen.to_be_bytes());
         v.extend_from_slice(&arp_request.oper.to_be_bytes());
-        v.extend_from_slice(&arp_request.sha);
-        v.extend_from_slice(&arp_request.spa);
-        v.extend_from_slice(&arp_request.tha);
-        v.extend_from_slice(&arp_request.tpa);
+        v.extend_from_slice(arp_request.sha);
+        v.extend_from_slice(arp_request.spa);
+        v.extend_from_slice(arp_request.tha);
+        v.extend_from_slice(arp_request.tpa);
 
         arp_request.raw_bytes = v;
     }
@@ -82,12 +78,12 @@ pub async fn get_mac_of_target(
     //send the packet
     let eth_packet = ethernet::EthernetFrame::new(
         &[0x08, 0x06],
-        &arp_request.raw_bytes(),
+        arp_request.raw_bytes(),
         &[0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
-        &source_mac[..],
+        source_mac,
     );
 
-    let (response, _) = listeners::request_and_response(eth_packet).await.unwrap();
+    let (response, _) = utilities::request_and_response(eth_packet).await.unwrap();
     let arp_reply = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
     Ok(arp_reply.source_mac.to_vec())
 }

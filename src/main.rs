@@ -2,15 +2,10 @@ use pingu::arp;
 use pingu::ethernet;
 use pingu::icmp::IcmpRequest;
 use pingu::ipv4;
-use pingu::listeners;
-use pingu::senders;
-use pingu::senders::{Packet, PacketType};
 use pingu::utilities;
+use pingu::senders::{Packet, PacketType};
 use std::env;
 use std::net;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
@@ -51,21 +46,19 @@ async fn main() {
         }
     };
 
-    println!("Destination mac is : {:?}", dest_mac);
-
     let eth_packet = ethernet::EthernetFrame::new(
         &[0x08, 0x00],
-        &ipv4_packet.raw_bytes(),
+        ipv4_packet.raw_bytes(),
         &dest_mac,
         &local_mac[..],
     );
 
-    let (response, roundtrip) = listeners::request_and_response(eth_packet).await.unwrap();
+    let (response, roundtrip) = utilities::request_and_response(eth_packet).await.unwrap();
 
     let ethernet_packet = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
     println!(
         "Received packet from {}. Round-trip time: {}",
-        listeners::print_reply(&ethernet_packet.raw_bytes[..]),
+        utilities::print_reply(&ethernet_packet.raw_bytes[..]),
         roundtrip
     );
 }

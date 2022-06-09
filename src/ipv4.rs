@@ -104,7 +104,6 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
         bytes.push(0_u8)
     }; //if odd number of bytes, add one more byte of 0
        //as padding
-    let v: Vec<&[u8]> = bytes.chunks(2).collect();
 
     let transform_to_u16 = |slice: &[u8]| {
         let a: u16 = slice[0] as u16;
@@ -112,22 +111,21 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
         new + slice[1] as u16
     };
 
-    let words: Vec<u16> = v.into_iter().map(transform_to_u16).collect();
+    let words: Vec<u16> = bytes.chunks(2).into_iter().map(transform_to_u16).collect();
 
     let mut sum: u16 = 0;
 
-    for i in 0..words.len() {
-        let (s, overflows) = sum.overflowing_add(words[i]);
+    for word in words {
+        let (s, overflows) = sum.overflowing_add(word);
         sum = if overflows {
-            let (result, _) = sum.carrying_add(words[i], true);
+            let (result, _) = sum.carrying_add(word, true);
             result
         } else {
             s
         };
     }
 
-    let sum = !sum;
-    sum
+    !sum
 }
 
 impl Packet for Ipv4 {
@@ -152,13 +150,13 @@ impl<'a> TryFrom<&'a [u8]> for Ipv4 {
     type Error = &'static str;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let version: u16 = (bytes[0] & 240 as u8).checked_shr(4).unwrap() as u16;
+        let version: u16 = (bytes[0] & 240_u8).checked_shr(4).unwrap() as u16;
         let ihl: u16 = (bytes[0] & 15) as u16;
         let type_of_service = bytes[1];
         let total_length: u16 = (bytes[2] as u16).checked_shl(8).unwrap() + bytes[3] as u16;
         let identification = ((bytes[4] & 240) + (bytes[5] & 15)) as u16;
         let flags: u8 = bytes[6] & 224;
-        let temp1: u16 = (bytes[6] as u16) << 8 as u16;
+        let temp1: u16 = (bytes[6] as u16) << 8_u16;
         let temp2: u16 = temp1 + bytes[7] as u16;
         let fragment_offset: u16 = (temp2 as u16 & 8191) as u16;
         let ttl = bytes[8];

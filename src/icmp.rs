@@ -1,8 +1,6 @@
 use crate::senders::Packet;
 use crate::senders::PacketType;
 
-const TOTAL_LENGTH: u16 = 8 + (DATA.len() as u16); //ICMP Header + Data
-                                                   //const DATA: [u8;18] = [106, 111, 110, 32, 112, 111, 115, 116, 101, 108,32,32,32,32,32,32,32,32];
 const DATA: [u8; 48] = [
     0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
     0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
@@ -70,7 +68,6 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
         bytes.push(0_u8)
     }; //if odd number of bytes, add one more byte of 0
        //as padding
-    let v: Vec<&[u8]> = bytes.chunks(2).collect();
 
     let transform_to_u16 = |slice: &[u8]| {
         let a: u16 = slice[0] as u16;
@@ -78,22 +75,21 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
         new + slice[1] as u16
     };
 
-    let words: Vec<u16> = v.into_iter().map(transform_to_u16).collect();
+    let words: Vec<u16> = bytes.chunks(2).into_iter().map(transform_to_u16).collect();
 
     let mut sum: u16 = 0;
-
-    for i in 0..words.len() {
-        let (s, overflows) = sum.overflowing_add(words[i]);
+    
+    for word in words {
+        let (s, overflows) = sum.overflowing_add(word);
         sum = if overflows {
-            let (result, _) = sum.carrying_add(words[i], true);
+            let (result, _) = sum.carrying_add(word, true);
             result
         } else {
             s
         };
     }
 
-    let sum = !sum;
-    sum
+    !sum
 }
 
 impl Packet for IcmpRequest {

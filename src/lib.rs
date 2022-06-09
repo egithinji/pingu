@@ -4,5 +4,4 @@ pub mod senders;
 pub mod ethernet;
 pub mod utilities;
 pub mod arp;
-pub mod listeners;
 pub mod ipv4;
