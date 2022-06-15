@@ -1,7 +1,10 @@
+use crate::arp;
 use crate::ethernet;
 use crate::icmp;
+use crate::icmp::IcmpRequest;
 use crate::ipv4;
-use crate::senders::{raw_send, Packet};
+use crate::senders::{raw_send, Packet, PacketType};
+use crate::utilities;
 use pcap;
 use pcap::Device;
 use pcap::{Active, Capture};
@@ -13,6 +16,55 @@ use std::time::Instant;
 
 const SYSFS_PATH: &str = "/sys/class/net/";
 const SYSFS_FILENAME: &str = "/address";
+
+pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static str> {
+    let (local_mac, local_ip) = utilities::get_local_mac_ip();
+
+    let icmp_packet = IcmpRequest::new();
+    let ipv4_packet = ipv4::Ipv4::new(
+        local_ip.octets(),
+        dest_ip.octets(),
+        icmp_packet.raw_bytes().clone(),
+        PacketType::IcmpRequest,
+    );
+
+    let dest_mac: Vec<u8> = if dest_ip.is_private() {
+        println!("dest ip is private, get mac of target...");
+        arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &local_ip.octets())
+            .await
+            .unwrap()
+    } else {
+        println!("dest ip is public, get mac of default gateway...");
+        match default_net::get_default_gateway() {
+            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
+            Err(e) => {
+                panic!("Error getting default gateway:{}", e);
+            }
+        }
+    };
+
+    let eth_packet = ethernet::EthernetFrame::new(
+        &[0x08, 0x00],
+        ipv4_packet.raw_bytes(),
+        &dest_mac,
+        &local_mac[..],
+    );
+
+    let (response, roundtrip) = utilities::request_and_response(eth_packet).await.unwrap();
+
+    match ethernet::EthernetFrame::try_from(&response[..]) {
+        Ok(eth_packet) => {
+            println!(
+                "Received packet from {}. Round-trip time: {}",
+                utilities::print_reply(&eth_packet.raw_bytes[..]),
+                roundtrip
+            );
+            let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
+            Ok(ipv4_packet)
+        }
+        Err(e) => Err(e),
+    }
+}
 
 pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
     let handle = &Device::list().unwrap()[0];
@@ -37,7 +89,7 @@ pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
     (mac, ip_address)
 }
 
-pub fn get_one_reply(cap: Arc<Mutex<Capture<Active>>>) -> Result<Vec<u8>, pcap::Error> {
+fn get_one_reply(cap: Arc<Mutex<Capture<Active>>>) -> Result<Vec<u8>, pcap::Error> {
     let mut cap = cap.lock().unwrap();
     //println!("Listening...");
     match cap.next() {
@@ -53,7 +105,7 @@ pub fn get_one_reply(cap: Arc<Mutex<Capture<Active>>>) -> Result<Vec<u8>, pcap::
     }
 }
 
-pub fn print_reply(bytes: &[u8]) -> String {
+fn print_reply(bytes: &[u8]) -> String {
     let eth_packet = ethernet::EthernetFrame::try_from(bytes).unwrap();
     let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
 
@@ -173,14 +225,13 @@ mod tests {
     use super::get_local_mac_ip;
     use super::Ipv4ValidationError;
     use super::*;
-    use crate::validators;
     use crate::{arp, ethernet, icmp, ipv4, senders, utilities};
     use default_net;
     use pcap::Device;
     use std::net;
     use std::{thread, time};
 
-    #[tokio::test]
+    /*#[tokio::test]
     #[ignore]
     pub async fn get_successful_arp_reply_works() {
         let source_mac = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
@@ -215,8 +266,9 @@ mod tests {
         let ethernet_packet = ethernet::EthernetFrame::try_from(&out[..]).unwrap();
 
         assert_eq!(&source_mac, ethernet_packet.dest_mac);
-    }
+    }*/
 
+    /*
     #[tokio::test]
     pub async fn external_icmp_request_receives_valid_reply() {
         let dest_ip: net::Ipv4Addr = "8.8.8.8".parse().unwrap();
@@ -255,7 +307,9 @@ mod tests {
         assert_eq!(ipv4_packet.identification, response.identification);
         assert_eq!(icmp_response.code, 1);
     }
+    */
 
+    /*
     #[tokio::test]
     pub async fn arp_broadcast_receives_valid_reply() {
         let target_ip: net::Ipv4Addr = "192.168.100.129".parse().unwrap();
@@ -271,63 +325,7 @@ mod tests {
         assert_eq!(arp_response.source_address(), arp_request.dest_address());
         assert_eq!(arp_response.oper, 2);
     }
-
-    #[test]
-    fn ipv4address_contains_only_digits_and_periods() {
-        let ip_addr: &str = "192.abc.1.0";
-        let ip_addr2: &str = "192,168,1,0";
-        let ip_addr3: &str = "192.168.1.-1";
-
-        assert_eq!(
-            validators::ipv4(ip_addr),
-            Err(Ipv4ValidationError::InvalidCharacter)
-        );
-
-        assert_eq!(
-            validators::ipv4(ip_addr2),
-            Err(Ipv4ValidationError::InvalidCharacter)
-        );
-
-        assert_eq!(
-            validators::ipv4(ip_addr3),
-            Err(Ipv4ValidationError::InvalidCharacter)
-        );
-    }
-
-    #[test]
-    fn ipv4address_must_have_four_octets() {
-        let ip_addr: &str = "192.168.1";
-        let ip_addr2: &str = "";
-        assert_eq!(
-            validators::ipv4(ip_addr),
-            Err(Ipv4ValidationError::TotalOctetsIncorrect)
-        );
-        assert_eq!(
-            validators::ipv4(ip_addr2),
-            Err(Ipv4ValidationError::TotalOctetsIncorrect)
-        );
-    }
-
-    #[test]
-    fn ipv4address_each_octet_within_correct_range() {
-        let ip_addr: &str = "300.168.1.0";
-        let ip_addr2: &str = "1922.168.1.0";
-
-        assert_eq!(
-            validators::ipv4(ip_addr),
-            Err(Ipv4ValidationError::IncorrectRange)
-        );
-        assert_eq!(
-            validators::ipv4(ip_addr2),
-            Err(Ipv4ValidationError::IncorrectRange)
-        );
-    }
-
-    #[test]
-    fn valid_ipv4address_passes() {
-        let ip_addr: &str = "192.168.100.100";
-        assert!(validators::ipv4(ip_addr).is_ok());
-    }
+    */
 
     #[test]
     #[ignore]

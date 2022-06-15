@@ -1,5 +1,5 @@
 /target
 /Cargo.lock
 **/*~
-*.txt
+notes.txt
 real_mac_address_arp.rs

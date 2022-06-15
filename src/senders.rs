@@ -39,7 +39,7 @@ mod tests {
     use pcap::Device;
     use std::net;
 
-    #[tokio::test]
+   /* #[tokio::test]
     #[ignore]
     async fn valid_packet_gets_sent_down_wire() {
         let icmp_packet = IcmpRequest::new();
@@ -64,5 +64,5 @@ mod tests {
            //testing
 
         assert!(result.await.is_ok());
-    }
+    }*/
 }
