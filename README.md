@@ -9,7 +9,7 @@ No, it doesn't aim or claim to be a **_blazingly fast_** version of ping. It's a
 * Implement Icmp logic
 
 ## How
-Since it's a learning project, I'm trying to write as much as possible on my own. However I am using the following dependencies for the following reasons:
+Since it's a learning project, I'm trying to write as much as possible on my own. However I am using the following dependencies:
 
 | Crate | Reason |
 | ------|--------|
