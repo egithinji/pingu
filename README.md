@@ -24,7 +24,7 @@ Learning together is fun! So please feel free to contribute code/feedback/ideas.
 ## Todo
 
 * [ ] Write integration tests
-* [ ] Update unit tests
+* [ ] Fix unit tests
 * [ ] Implement timeouts for unreachable hosts
 * [ ] Add documentation
 * [ ] Send and receive multiple Icmp requests/responses
