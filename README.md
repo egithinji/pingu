@@ -1,5 +1,5 @@
 # pingu
-Pingu is an implementation of the [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility)) network utility written in Rust.
+Pingu is an implementation of the [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility)) network utility written in Rust. It satisfies pages 14 and 15 of [RFC 792](https://datatracker.ietf.org/doc/html/rfc792).
 
 ## Why
 No, it doesn't aim or claim to be a **_blazingly fast_** version of ping. It's a learning project to help me better understand Datalink and Network layer protocols, and practice writing Rust code. In particular I want to learn how to:
