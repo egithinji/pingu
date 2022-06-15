@@ -19,7 +19,7 @@ Since it's a learning project, I'm trying to write as much as possible on my own
 
 
 ## Contributions
-Learning together is more fun so contributions/feedback/ideas are welcome!
+Learning together is fun! So please feel free to contribute code/feedback/ideas.
 
 ## Todo
 
