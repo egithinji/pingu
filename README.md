@@ -26,6 +26,7 @@ Learning together is more fun so contributions/feedback/ideas are welcome!
 * [ ] Write integration tests
 * [ ] Update unit tests
 * [ ] Implement timeouts for unreachable hosts
+* [ ] Add documentation
 * [ ] Send and receive multiple Icmp requests/responses
 * [ ] Add DNS support
 
