@@ -15,7 +15,7 @@ Since it's a learning project, I'm trying to write as much as possible on my own
 | ------|--------|
 | [pcap](https://github.com/rust-pcap/pcap) | For sending/receiving raw packets to/from the network device. This way I don't have to deal with system calls and instead focus on packet construction and logic |
 | [crc32fast](https://github.com/srijs/rust-crc32fast) | For quickly generating ethernet frame check sequences |
-| [default-net](https://github.com/shellrow/default-net) | For retreiving local mac address and default gateway |
+| [default-net](https://github.com/shellrow/default-net) | For retreiving default gateway |
 
 
 ## Contributions
