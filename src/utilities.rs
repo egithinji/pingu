@@ -9,6 +9,7 @@ use pcap;
 use pcap::Device;
 use pcap::{Active, Capture};
 use std::fs::File;
+use std::io::BufReader;
 use std::io::prelude::*;
 use std::net;
 use std::sync::{Arc, Mutex};
@@ -186,6 +187,16 @@ pub async fn request_and_response<'a>(
     }
 }
 
+pub fn get_wireshark_bytes(file_name: &str) -> Vec<u8> {
+
+   let file = File::open(file_name).unwrap();
+   let mut buf_reader = BufReader::new(file);
+   let mut contents = String::new();
+   buf_reader.read_to_string(&mut contents).unwrap();
+   contents.pop();
+   contents.split(',').map(|v| v.trim_start_matches("0x")).map(|v| u8::from_str_radix(v,16).unwrap()).collect()
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Ipv4ValidationError {
     TotalOctetsIncorrect,
@@ -328,11 +339,9 @@ mod tests {
     */
 
     #[test]
-    #[ignore]
     fn returns_correct_ip_and_mac_for_default_device() {
         let correct_ip: net::Ipv4Addr = net::Ipv4Addr::new(192, 168, 100, 16);
-        let correct_mac: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]; //replace with real mac
-                                                                         //when testing
+        let correct_mac: [u8; 6] = super::get_wireshark_bytes("test_source_mac.txt").try_into().unwrap(); 
 
         let (mac, ip_addr) = get_local_mac_ip();
 

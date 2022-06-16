@@ -140,6 +140,7 @@ impl<'a> TryFrom<&'a [u8]> for IcmpRequest {
 mod tests {
 
     use super::{calculate_checksum, IcmpRequest, DATA};
+    use crate::utilities::get_wireshark_bytes;
 
     #[test]
     fn raw_icmp_bytes_works() {

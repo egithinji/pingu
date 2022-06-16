@@ -116,21 +116,15 @@ impl<'a> TryFrom<&'a [u8]> for ArpRequest<'a> {
 #[cfg(test)]
 mod tests {
     use super::{get_mac_of_target, ArpRequest};
+    use crate::utilities::{get_local_mac_ip, get_wireshark_bytes};
 
     #[test]
-    #[ignore]
     fn generates_valid_arp_request() {
-        //Reference bytes are the bytes as captured by wireshark for an arp request generated on
-        //the local network by a linux machine. The request is by a host with IP 192.168.100.16
-        //looking for 192.168.100.97. This is just the arp request portion.
-
-        let ref_bytes: [u8; 28] = [
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ]; //when testing replace with real macaddress
-
-        let local_mac: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]; //when testing replace with real macaddress
-
+        let ref_bytes: [u8; 28] = get_wireshark_bytes("test_valid_arp_request_data.txt")
+            .try_into()
+            .unwrap();
+        let (local_mac, _) = get_local_mac_ip();
+        let local_mac: [u8; 6] = local_mac.try_into().unwrap();
         let local_ip: [u8; 4] = [192, 168, 100, 16];
         let dest_ip: [u8; 4] = [192, 168, 100, 97];
 
@@ -140,13 +134,14 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn gets_correct_mac_based_on_ip() {
-        let target_ip = [192, 168, 100, 132];
-        let target_mac = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0]; //when testing replace with real mac
-                                                         //address
+        let target_ip = [192, 168, 100, 129];
+        let target_mac: [u8; 6] = get_wireshark_bytes("test_target_mac.txt")
+            .try_into()
+            .unwrap();
 
-        let source_mac = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+        let (source_mac, _) = get_local_mac_ip();
+        let source_mac: [u8; 6] = source_mac.try_into().unwrap();
 
         let source_ip = [192, 168, 100, 16];
 
@@ -158,14 +153,14 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn valid_arp_packet_created_from_bytes() {
-        //when testing replace with bytes received from an arp reply
-        let received_bytes = &[
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ]
-        .to_vec()[..];
+        let received_bytes = &get_wireshark_bytes("test_arp_reply_bytes.txt")[..];
+
+        let (tha, _) = get_local_mac_ip();
+        let tha: [u8; 6] = tha.try_into().unwrap();
+        let sha: [u8; 6] = get_wireshark_bytes("test_target_mac.txt")
+            .try_into()
+            .unwrap();
 
         let expected = ArpRequest {
             htype: 1,
@@ -173,9 +168,9 @@ mod tests {
             hlen: 6,
             plen: 4,
             oper: 2, //coz we're capturing a reply not a request
-            sha: &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
-            spa: &[192, 168, 100, 131],
-            tha: &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00], //when testing replace with real mac address
+            sha: &sha,
+            spa: &[192, 168, 100, 129],
+            tha: &tha,
             tpa: &[192, 168, 100, 16],
             raw_bytes: Vec::new(),
         };
