@@ -197,44 +197,11 @@ pub fn get_wireshark_bytes(file_name: &str) -> Vec<u8> {
    contents.split(',').map(|v| v.trim_start_matches("0x")).map(|v| u8::from_str_radix(v,16).unwrap()).collect()
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Ipv4ValidationError {
-    TotalOctetsIncorrect,
-    IncorrectRange,
-    InvalidCharacter,
-}
-
-pub fn ipv4(address: &str) -> Result<(), Ipv4ValidationError> {
-    for char in address.chars() {
-        if !(char.is_numeric() || char == '.') {
-            return Err(Ipv4ValidationError::InvalidCharacter);
-        }
-    }
-
-    let octets: Vec<&str> = address.split('.').collect();
-    if octets.len() != 4 {
-        return Err(Ipv4ValidationError::TotalOctetsIncorrect);
-    }
-
-    for octet in octets {
-        match octet.parse::<u8>() {
-            Ok(_) => {
-                //
-            }
-            Err(_) => {
-                return Err(Ipv4ValidationError::IncorrectRange);
-            }
-        }
-    }
-
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {
 
     use super::get_local_mac_ip;
-    use super::Ipv4ValidationError;
     use super::*;
     use crate::{arp, ethernet, icmp, ipv4, senders, utilities};
     use default_net;
