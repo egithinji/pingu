@@ -55,18 +55,22 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
         &local_mac[..],
     );
 
-    let (response, roundtrip) = request_and_response(eth_packet).await.unwrap();
-
-    match ethernet::EthernetFrame::try_from(&response[..]) {
-        Ok(eth_packet) => {
-            println!(
-                "Received packet from {}. Round-trip time: {}",
-                print_reply(&eth_packet.raw_bytes[..]),
-                roundtrip
-            );
-            let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
-            Ok(ipv4_packet)
-        }
+    match request_and_response(eth_packet).await {
+        Ok((response, roundtrip)) => match ethernet::EthernetFrame::try_from(&response[..]) {
+            Ok(eth_packet) => {
+                println!(
+                    "Received packet from {}. Round-trip time: {}",
+                    print_reply(&eth_packet.raw_bytes[..]),
+                    roundtrip
+                );
+                let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
+                Ok(ipv4_packet)
+            }
+            Err(e) => {
+                println!("{e}");
+                Err(e)
+            }
+        },
         Err(e) => {
             println!("{e}");
             Err(e)
