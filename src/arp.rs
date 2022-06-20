@@ -68,6 +68,7 @@ impl<'a> Packet for ArpRequest<'a> {
     }
 }
 
+//Todo: Move this function to utilities.rs
 pub async fn get_mac_of_target(
     target_ip: &[u8],
     source_mac: &[u8],
@@ -83,9 +84,16 @@ pub async fn get_mac_of_target(
         source_mac,
     );
 
-    let (response, _) = utilities::request_and_response(eth_packet).await.unwrap();
-    let arp_reply = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
-    Ok(arp_reply.source_mac.to_vec())
+    match utilities::request_and_response(eth_packet).await {
+        Ok((response, _)) => {
+            let arp_reply = ethernet::EthernetFrame::try_from(&response[..]).unwrap();
+            Ok(arp_reply.source_mac.to_vec())
+        },
+        Err(e) => {
+            Err(e)
+        }
+    }
+
 }
 
 impl<'a> TryFrom<&'a [u8]> for ArpRequest<'a> {

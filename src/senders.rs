@@ -17,10 +17,7 @@ pub trait Packet {
 }
 
 pub fn raw_send(bytes: &[u8], cap: Arc<Mutex<Capture<Active>>>) -> Result<Instant, Error> {
-    println!("Opening lock on capture...");
-
     let mut cap = cap.lock().unwrap();
-
     match cap.sendpacket(bytes) {
         Ok(()) => {
             println!("Packet sent ********************************************");

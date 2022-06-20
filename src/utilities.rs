@@ -9,8 +9,8 @@ use pcap;
 use pcap::Device;
 use pcap::{Active, Capture};
 use std::fs::File;
-use std::io::BufReader;
 use std::io::prelude::*;
+use std::io::BufReader;
 use std::net;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -31,9 +31,13 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
 
     let dest_mac: Vec<u8> = if dest_ip.is_private() {
         println!("dest ip is private, get mac of target...");
-        arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &local_ip.octets())
-            .await
-            .unwrap()
+        match arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &local_ip.octets()).await {
+            Ok(dmac) => dmac,
+            Err(e) => {
+                println!("{e}");
+                return Err(e);
+            }
+        }
     } else {
         println!("dest ip is public, get mac of default gateway...");
         match default_net::get_default_gateway() {
@@ -51,19 +55,22 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
         &local_mac[..],
     );
 
-    let (response, roundtrip) = utilities::request_and_response(eth_packet).await.unwrap();
+    let (response, roundtrip) = request_and_response(eth_packet).await.unwrap();
 
     match ethernet::EthernetFrame::try_from(&response[..]) {
         Ok(eth_packet) => {
             println!(
                 "Received packet from {}. Round-trip time: {}",
-                utilities::print_reply(&eth_packet.raw_bytes[..]),
+                print_reply(&eth_packet.raw_bytes[..]),
                 roundtrip
             );
             let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
             Ok(ipv4_packet)
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            println!("{e}");
+            Err(e)
+        }
     }
 }
 
@@ -88,22 +95,6 @@ pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
         .collect();
 
     (mac, ip_address)
-}
-
-fn get_one_reply(cap: Arc<Mutex<Capture<Active>>>) -> Result<Vec<u8>, pcap::Error> {
-    let mut cap = cap.lock().unwrap();
-    //println!("Listening...");
-    match cap.next() {
-        Ok(packet) => {
-            println!("Received a packet!");
-            Ok(packet.data.to_vec())
-        }
-
-        Err(e) => {
-            //println!("No packet found, returning...");
-            Err(e)
-        }
-    }
 }
 
 fn print_reply(bytes: &[u8]) -> String {
@@ -154,16 +145,32 @@ pub async fn request_and_response<'a>(
     let cap = Arc::new(Mutex::new(cap));
     let cap2 = Arc::clone(&cap);
 
-    //start listening for arp reply in dedicated thread
+    //start listening for reply in dedicated thread
     //send reply when received
     let (tx, rx) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
+        //start a timer
+        let now = Instant::now();
         loop {
-            let ethernet_packet = get_one_reply(Arc::clone(&cap));
-            if ethernet_packet.is_ok() {
-                tx.send(ethernet_packet);
+            //check timer
+            let elapsed_time = now.elapsed();
+            if elapsed_time.as_millis() > 1000 {
+                tx.send(Err("Destination host didn't respond within 1 second."));
                 break;
             }
+
+            let cap = Arc::clone(&cap);
+            let mut cap = cap.lock().unwrap();
+            match cap.next() {
+                Ok(packet) => {
+                    println!("Received a packet!");
+                    tx.send(Ok(packet.data.to_vec()));
+                    break;
+                }
+                Err(_) => {
+                    //No packet on the wire. Drop mutex lock and loop
+                }
+            };
         }
     });
 
@@ -179,24 +186,27 @@ pub async fn request_and_response<'a>(
     match rx.await {
         Ok(v) => {
             let elapsed_time = now.elapsed().as_millis();
-            println!("Received response...");
-            let eth_packet = v.unwrap();
-            Ok((eth_packet, elapsed_time))
+            match v {
+                Ok(eth_packet) => Ok((eth_packet, elapsed_time)),
+                Err(e) => Err(e),
+            }
         }
         Err(_) => Err("Something bad happened"),
     }
 }
 
 pub fn get_wireshark_bytes(file_name: &str) -> Vec<u8> {
-
-   let file = File::open(file_name).unwrap();
-   let mut buf_reader = BufReader::new(file);
-   let mut contents = String::new();
-   buf_reader.read_to_string(&mut contents).unwrap();
-   contents.pop();
-   contents.split(',').map(|v| v.trim_start_matches("0x")).map(|v| u8::from_str_radix(v,16).unwrap()).collect()
+    let file = File::open(file_name).unwrap();
+    let mut buf_reader = BufReader::new(file);
+    let mut contents = String::new();
+    buf_reader.read_to_string(&mut contents).unwrap();
+    contents.pop();
+    contents
+        .split(',')
+        .map(|v| v.trim_start_matches("0x"))
+        .map(|v| u8::from_str_radix(v, 16).unwrap())
+        .collect()
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -308,7 +318,9 @@ mod tests {
     #[test]
     fn returns_correct_ip_and_mac_for_default_device() {
         let correct_ip: net::Ipv4Addr = net::Ipv4Addr::new(192, 168, 100, 16);
-        let correct_mac: [u8; 6] = super::get_wireshark_bytes("test_source_mac.txt").try_into().unwrap(); 
+        let correct_mac: [u8; 6] = super::get_wireshark_bytes("test_source_mac.txt")
+            .try_into()
+            .unwrap();
 
         let (mac, ip_addr) = get_local_mac_ip();
 
