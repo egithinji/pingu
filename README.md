@@ -17,6 +17,30 @@ Since it's a learning project, I'm trying to write as much as possible on my own
 | [crc32fast](https://github.com/srijs/rust-crc32fast) | For quickly generating ethernet frame check sequences |
 | [default-net](https://github.com/shellrow/default-net) | For retreiving default gateway |
 
+## Installation (Debian based Linux)
+* Install libpcap-dev
+```
+sudo apt update
+sudo apt install libpcap-dev
+```
+* Clone this repo
+* Build:
+```
+cargo build --release
+```
+* Set the necessary capabilities
+```
+sudo setcap cap_net_raw,cap_net_admin=eip path/to/pingu/target/release
+```
+* Add binary to PATH. Add the following to your ~/.bashrc:
+```
+export PATH=path/to/pingu/target/release
+
+```
+* Restart terminal, then Run as follows:
+```
+pingu 8.8.8.8
+```
 
 ## Contributions
 Learning together is fun! So please feel free to contribute code/feedback/ideas.
@@ -26,8 +50,7 @@ Learning together is fun! So please feel free to contribute code/feedback/ideas.
 * [ ] Write integration tests
 * [ ] Fix unit tests
 * [x] Implement timeouts for unreachable hosts
+* [ ] Move get_mac_of_target() fn to utilities.rs and inline it
 * [ ] Add documentation
-* [ ] Send and receive multiple Icmp requests/responses
-* [ ] Add DNS support
 
 
