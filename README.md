@@ -32,7 +32,7 @@ sudo apt install libpcap-dev
 ```
 cargo build --release
 ```
-* Set the necessary capabilities
+* Set the following capabilities:
 ```
 sudo setcap cap_net_raw,cap_net_admin=eip path/to/pingu/target/release
 ```
