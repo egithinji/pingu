@@ -1,6 +1,9 @@
 # pingu
 Pingu is an implementation of the [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility)) network utility written in Rust. It aims to satisfy pages 14 and 15 of [RFC 792](https://datatracker.ietf.org/doc/html/rfc792).
 
+## Screenshot
+![Screenshot](docs/images/pingu_screenshot.png)
+
 ## Why
 It's a learning project to help me better understand Datalink and Network layer protocols, and practice writing Rust code. In particular I want to learn how to:
 
