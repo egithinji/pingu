@@ -18,6 +18,7 @@ Since it's a learning project, I'm trying to write as much as possible on my own
 | [default-net](https://github.com/shellrow/default-net) | For retreiving default gateway |
 
 ## Installation (Debian based Linux)
+* [Install rust](https://doc.rust-lang.org/book/ch01-01-installation.html)
 * Install libpcap-dev
 ```
 sudo apt update
