@@ -106,8 +106,8 @@ impl<'a> Packet for EthernetFrame<'a> {
 mod tests {
 
     use super::EthernetFrame;
-    use crate::icmp;
-    use crate::ipv4::Ipv4;
+    use crate::packets::icmp;
+    use crate::packets::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
     use crate::utilities::{get_wireshark_bytes, get_local_mac_ip};
     const DEST_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];

@@ -1,6 +1,7 @@
 use crate::senders::Packet;
 use crate::senders::PacketType;
-use crate::{ethernet, utilities};
+use crate::packets::ethernet;
+use crate::utilities;
 
 pub struct ArpRequest<'a> {
     htype: u16,    //hardware type

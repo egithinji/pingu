@@ -1,8 +1,8 @@
-use crate::arp;
-use crate::ethernet;
-use crate::icmp;
-use crate::icmp::IcmpRequest;
-use crate::ipv4;
+use crate::packets::arp;
+use crate::packets::ethernet;
+use crate::packets::icmp;
+use crate::packets::icmp::IcmpRequest;
+use crate::packets::ipv4;
 use crate::senders::{raw_send, Packet, PacketType};
 use crate::utilities;
 use pcap;
