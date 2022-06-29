@@ -217,7 +217,8 @@ mod tests {
 
     use super::get_local_mac_ip;
     use super::*;
-    use crate::{arp, ethernet, icmp, ipv4, senders, utilities};
+    use crate::packets::{arp, ethernet, icmp, ipv4}; 
+    use crate::{senders, utilities};
     use default_net;
     use pcap::Device;
     use std::net;

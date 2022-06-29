@@ -1,19 +1,20 @@
+use crate::parsers::parse_ipv4;
 use crate::senders::{Packet, PacketType};
 
 const FLAGSANDOFFSET: u16 = 16384_u16;
 const HEADER_LENGTH: u16 = 20;
 
 pub struct Ipv4 {
-    version: u16,
-    ihl: u16,
-    type_of_service: u8,
-    total_length: u16,
+    pub version: u16,
+    pub ihl: u16,
+    pub type_of_service: u8,
+    pub total_length: u16,
     pub identification: u16,
-    flags: u8,
-    fragment_offset: u16,
-    ttl: u8,
-    protocol: u8,
-    header_checksum: u16,
+    pub flags: u8,
+    pub fragment_offset: u16,
+    pub ttl: u8,
+    pub protocol: u8,
+    pub header_checksum: u16,
     pub source_address: [u8; 4],
     pub dest_address: [u8; 4],
     pub payload: Vec<u8>,
@@ -147,49 +148,11 @@ impl Packet for Ipv4 {
 }
 
 impl<'a> TryFrom<&'a [u8]> for Ipv4 {
-    type Error = &'static str;
+    type Error = nom::Err<nom::error::Error<&'a [u8]>>;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let version: u16 = (bytes[0] & 240_u8).checked_shr(4).unwrap() as u16;
-        let ihl: u16 = (bytes[0] & 15) as u16;
-        let type_of_service = bytes[1];
-        let total_length: u16 = (bytes[2] as u16).checked_shl(8).unwrap() + bytes[3] as u16;
-        let identification = ((bytes[4] & 240) + (bytes[5] & 15)) as u16;
-        let flags: u8 = bytes[6] & 224;
-        let temp1: u16 = (bytes[6] as u16) << 8_u16;
-        let temp2: u16 = temp1 + bytes[7] as u16;
-        let fragment_offset: u16 = (temp2 as u16 & 8191) as u16;
-        let ttl = bytes[8];
-        let protocol = bytes[9];
-        let header_checksum: u16 = (bytes[10] as u16).checked_shl(8).unwrap() + (bytes[11] as u16);
-        let source_address: [u8; 4] = [bytes[12], bytes[13], bytes[14], bytes[15]];
-        let dest_address: [u8; 4] = [bytes[16], bytes[17], bytes[18], bytes[19]];
-        let start_of_data: usize = ((ihl * 32) / 8) as usize;
-        let payload: Vec<u8> = bytes[start_of_data..].to_vec();
-        let packet_type = match payload[0] {
-            //match here as reminder to add more types, especially
-            //icmpreply
-            _ => PacketType::IcmpRequest,
-        };
-
-        Ok(Ipv4 {
-            version,
-            ihl,
-            type_of_service,
-            total_length,
-            identification,
-            flags,
-            fragment_offset,
-            ttl,
-            protocol,
-            header_checksum,
-            source_address,
-            dest_address,
-            payload,
-            raw_ip_header_bytes: Vec::new(),
-            entire_packet: Vec::new(),
-            packet_type,
-        })
+        let (_, ipv4_packet) = parse_ipv4(bytes)?;
+        Ok(ipv4_packet)
     }
 }
 

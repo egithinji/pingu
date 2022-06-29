@@ -1,5 +1,8 @@
+use crate::parsers::parse_icmp;
 use crate::senders::Packet;
 use crate::senders::PacketType;
+use nom::error::ParseError;
+use nom::*;
 
 const DATA: [u8; 48] = [
     0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -8,12 +11,12 @@ const DATA: [u8; 48] = [
 ];
 
 pub struct IcmpRequest {
-    icmp_type: u8,
+    pub icmp_type: u8,
     pub code: u8,
-    icmp_checksum: u16,
-    identifier: u16,
-    sequence_number: u16,
-    data: [u8; 48],
+    pub icmp_checksum: u16,
+    pub identifier: u16,
+    pub sequence_number: u16,
+    pub data: [u8; 48],
     pub raw_icmp_bytes: Vec<u8>,
 }
 
@@ -78,7 +81,7 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
     let words: Vec<u16> = bytes.chunks(2).into_iter().map(transform_to_u16).collect();
 
     let mut sum: u16 = 0;
-    
+
     for word in words {
         let (s, overflows) = sum.overflowing_add(word);
         sum = if overflows {
@@ -111,28 +114,12 @@ impl Packet for IcmpRequest {
 }
 
 impl<'a> TryFrom<&'a [u8]> for IcmpRequest {
-    type Error = &'static str;
+    type Error = nom::Err<nom::error::Error<&'a [u8]>>;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let icmp_type: u8 = bytes[0];
-        let code: u8 = bytes[1];
-        let icmp_checksum: u16 = (bytes[2] as u16).checked_shl(8).unwrap() + bytes[3] as u16;
-        let identifier: u16 = (bytes[4] as u16).checked_shl(8).unwrap() + bytes[5] as u16;
-        let sequence_number = (bytes[6] as u16).checked_shl(8).unwrap() + bytes[7] as u16;
-        let mut data: [u8; 48] = [0; 48];
-        for (i, _) in data.into_iter().enumerate() {
-            data[i] = bytes[i + 8];
-        }
-
-        Ok(IcmpRequest {
-            icmp_type,
-            code,
-            icmp_checksum,
-            identifier,
-            sequence_number,
-            data,
-            raw_icmp_bytes: Vec::new(),
-        })
+        
+        let (_, icmp_packet) = parse_icmp(bytes)?;
+        Ok(icmp_packet)
     }
 }
 

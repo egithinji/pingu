@@ -2,17 +2,19 @@ use crate::senders::Packet;
 use crate::senders::PacketType;
 use crate::packets::ethernet;
 use crate::utilities;
+use nom::error::ParseError;
+use crate::parsers::parse_arp;
 
 pub struct ArpRequest<'a> {
-    htype: u16,    //hardware type
-    ptype: u16,    //protocol type
-    hlen: u8,      //hardware address length
-    plen: u8,      //protocol address length
+    pub htype: u16,    //hardware type
+    pub ptype: u16,    //protocol type
+    pub hlen: u8,      //hardware address length
+    pub plen: u8,      //protocol address length
     pub oper: u16, //operation
     pub sha: &'a [u8],
-    spa: &'a [u8],
-    tha: &'a [u8],
-    tpa: &'a [u8],
+    pub spa: &'a [u8],
+    pub tha: &'a [u8],
+    pub tpa: &'a [u8],
     pub raw_bytes: Vec<u8>,
 }
 
@@ -98,27 +100,11 @@ pub async fn get_mac_of_target(
 }
 
 impl<'a> TryFrom<&'a [u8]> for ArpRequest<'a> {
-    type Error = &'static str;
+    type Error = nom::Err<nom::error::Error<&'a [u8]>>;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let htype: u16 = (bytes[0] as u16).checked_shl(8).unwrap() + bytes[1] as u16;
-        let ptype: u16 = (bytes[2] as u16).checked_shl(8).unwrap() + bytes[3] as u16;
-        let hlen: u8 = bytes[4];
-        let plen: u8 = bytes[5];
-        let oper: u16 = (bytes[6] as u16).checked_shl(8).unwrap() + bytes[7] as u16;
-
-        Ok(ArpRequest {
-            htype,
-            ptype,
-            hlen,
-            plen,
-            oper,
-            sha: &bytes[8..14],
-            spa: &bytes[14..18],
-            tha: &bytes[18..24],
-            tpa: &bytes[24..28],
-            raw_bytes: Vec::new(),
-        })
+        let (_, arp_packet) = parse_arp(bytes)?;
+        Ok(arp_packet)
     }
 }
 
@@ -143,6 +129,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn gets_correct_mac_based_on_ip() {
         let target_ip = [192, 168, 100, 129];
         let target_mac: [u8; 6] = get_wireshark_bytes("test_target_mac.txt")
