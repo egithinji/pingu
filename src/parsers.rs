@@ -9,12 +9,6 @@ use nom::Err;
 use nom::IResult;
 use nom::Parser;
 
-#[derive(Debug, PartialEq)]
-pub struct MyPacket {
-    first: [u8; 4],
-    second: [u8; 6],
-}
-
 fn parse_byte_chunk<'a, E: ParseError<&'a [u8]>>(
     chunk_size: usize,
 ) -> impl Parser<&'a [u8], &'a [u8], E> {
@@ -48,21 +42,6 @@ fn parse_adhoc_bits<'a, E>(
 
         Ok((remainder, (first, second)))
     }
-}
-
-fn parse_my_packet(bytes: &[u8]) -> IResult<&[u8], MyPacket> {
-    let mut operation = tuple((parse_byte_chunk(4), parse_byte_chunk(6)));
-    let (_, (first, second)) = operation.parse(bytes)?;
-
-    Ok((
-        bytes,
-        MyPacket {
-            first: [first[0], first[1], first[2], first[3]],
-            second: [
-                second[0], second[1], second[2], second[3], second[4], second[5],
-            ],
-        },
-    ))
 }
 
 pub fn parse_icmp(bytes: &[u8]) -> IResult<&[u8], IcmpRequest> {
@@ -214,23 +193,6 @@ mod tests {
     use super::*;
     use nom::bits::complete::take;
     use nom::error::ParseError;
-
-    #[test]
-    pub fn test_parse() {
-        let bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let faulty_bytes = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-        assert_eq!(
-            parse_my_packet(&bytes),
-            Ok((
-                &bytes[..],
-                MyPacket {
-                    first: [1, 2, 3, 4],
-                    second: [5, 6, 7, 8, 9, 10],
-                }
-            ))
-        );
-    }
 
     #[test]
     pub fn test_bits_parse<'a>() {

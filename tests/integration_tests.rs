@@ -1,8 +1,9 @@
 use pingu::utilities;
-use pingu::ipv4;
+use pingu::packets::ipv4;
 use std::net;
 
 #[tokio::test]
+#[ignore]
 pub async fn single_external_pingu_receives_reply() {
 
         let dest_ip: net::Ipv4Addr = "8.8.8.8".parse().unwrap();
@@ -12,6 +13,7 @@ pub async fn single_external_pingu_receives_reply() {
 }
 
 #[tokio::test]
+#[ignore]
 pub async fn single_internal_pingu_receives_reply() {
 
         let dest_ip: net::Ipv4Addr = "192.168.100.129".parse().unwrap();
