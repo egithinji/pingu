@@ -1,4 +1,5 @@
 use crate::packets::arp::ArpRequest;
+use crate::packets::ethernet::EthernetFrame;
 use crate::packets::icmp::IcmpRequest;
 use crate::packets::ipv4::Ipv4;
 use crate::senders::PacketType;
@@ -36,9 +37,7 @@ fn parse_adhoc_bits<'a, E>(
         let (tail, first) = parse_bits_chunk::<'a, ()>(first_bits)
             .parse((chunk, 0))
             .unwrap();
-        let (_, second) = parse_bits_chunk::<'a, ()>(second_bits)
-            .parse(tail)
-            .unwrap();
+        let (_, second) = parse_bits_chunk::<'a, ()>(second_bits).parse(tail).unwrap();
 
         Ok((remainder, (first, second)))
     }
@@ -121,7 +120,7 @@ pub fn parse_arp(bytes: &[u8]) -> IResult<&[u8], ArpRequest> {
 }
 
 pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
-    let (_, start_of_data) = parse_adhoc_bits::<()>(4,4,1).parse(bytes).unwrap();
+    let (_, start_of_data) = parse_adhoc_bits::<()>(4, 4, 1).parse(bytes).unwrap();
     let start_of_data: usize = ((start_of_data.1 * 32) / 8) as usize;
 
     let mut operation = tuple((
@@ -187,12 +186,26 @@ pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
     ))
 }
 
+pub fn parse_ethernet(bytes: &[u8]) -> IResult<&[u8], EthernetFrame> {
+    let mut operation = tuple((
+        parse_byte_chunk(6),                //dest_mac
+        parse_byte_chunk(6),                //source_mac
+        parse_byte_chunk(2),                //eth_type
+        parse_byte_chunk(bytes.len() - 14), //payload
+    ));
+
+    let (left_over, (dest_mac, source_mac, eth_type, payload)) = operation.parse(bytes)?;
+
+    let e = EthernetFrame::new(eth_type, payload, dest_mac, source_mac);
+
+    Ok((left_over, e))
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use nom::bits::complete::take;
-    use nom::error::ParseError;
+    use crate::utilities::{get_wireshark_bytes,get_local_mac_ip};
 
     #[test]
     pub fn test_bits_parse<'a>() {
@@ -205,8 +218,6 @@ mod tests {
             parse_bits_chunk::<'a, ()>(4).parse(([0b00001111].as_ref(), 0)),
             Ok((([0b00001111].as_ref(), 4), 0b00000000))
         );
-
-        let bits = 0b00110101;
 
         let (tail, first_four) = parse_bits_chunk::<'a, ()>(4)
             .parse(([0b00110101].as_ref(), 0))
@@ -300,5 +311,31 @@ mod tests {
         assert_eq!(test_ip_packet.source_address, expected.source_address);
         assert_eq!(test_ip_packet.dest_address, expected.dest_address);
         assert_eq!(test_ip_packet.payload, expected.payload);
+    }
+
+    #[test]
+    pub fn test_ethernet_parse() {
+        //test_bytes are taken contents of icmp reply received from 8.8.8.8 after pinging from Linux.
+        let test_bytes = &get_wireshark_bytes("test_ethernet_frame_reply.txt")[..];
+        let (dest_mac, _) = get_local_mac_ip();
+        let dest_mac: [u8; 6] = dest_mac.try_into().unwrap();
+        let source_mac: [u8; 6] = get_wireshark_bytes("test_default_gateway_mac.txt")
+            .try_into()
+            .unwrap();
+        let expected = EthernetFrame {
+            dest_mac: &dest_mac,
+            source_mac: &source_mac,
+            ether_type: &[0x08, 0x00],
+            payload: &vec![0; 84], //Not interested in contents of payload but the length should be correct
+            fcs: [0, 0, 0, 0],     //Not interested in comparing fcs
+            raw_bytes: vec![0; 98], //Just interested in the length
+        };
+
+        let (_, test_eth_frame) = parse_ethernet(test_bytes).unwrap();
+        assert_eq!(test_eth_frame.dest_mac, expected.dest_mac);
+        assert_eq!(test_eth_frame.source_mac, expected.source_mac);
+        assert_eq!(test_eth_frame.ether_type, expected.ether_type);
+        assert_eq!(test_eth_frame.payload.len(), expected.payload.len());
+        assert_eq!(test_eth_frame.raw_bytes.len() - 4, test_bytes.len()); //-4 becase of fcs
     }
 }

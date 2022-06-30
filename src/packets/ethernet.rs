@@ -1,4 +1,5 @@
-use crate::senders::{Packet,PacketType};
+use crate::parsers::parse_ethernet;
+use crate::senders::{Packet, PacketType};
 use crc32fast;
 
 pub struct EthernetFrame<'a> {
@@ -68,23 +69,21 @@ impl<'a> TryFrom<&'a [u8]> for EthernetFrame<'a> {
     type Error = &'static str;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        //use the eth_type (bytes of index 12 and 13) as a validity check
-        match bytes[12..14] {
-            [0x08, 0x00] | [0x08, 0x06] => Ok(EthernetFrame::new(
-                &bytes[12..14],
-                &bytes[14..],
-                &bytes[0..6],
-                &bytes[6..12],
-            )),
+        let eth_frame = match parse_ethernet(bytes) {
+            Ok((_, eth)) => eth,
+            Err(e) => return Err("Error parsing ethernet frame"),
+        };
+        match eth_frame.ether_type {
+            [0x08, 0x00] | [0x08, 0x06] => Ok(eth_frame),
             _ => {
                 println!("eth_type: {:?}", &bytes[12..14]);
-                Err("Ethernet packet not recognized.")},
+                Err("Ethernet packet not recognized.")
+            }
         }
     }
 }
 
 impl<'a> Packet for EthernetFrame<'a> {
-
     fn raw_bytes(&self) -> &Vec<u8> {
         &self.raw_bytes
     }
@@ -100,7 +99,6 @@ impl<'a> Packet for EthernetFrame<'a> {
     fn source_address(&self) -> Option<Vec<u8>> {
         Some(self.source_mac.to_vec())
     }
-    
 }
 
 mod tests {
@@ -109,7 +107,7 @@ mod tests {
     use crate::packets::icmp;
     use crate::packets::ipv4::Ipv4;
     use crate::senders::{Packet, PacketType};
-    use crate::utilities::{get_wireshark_bytes, get_local_mac_ip};
+    use crate::utilities::{get_local_mac_ip, get_wireshark_bytes};
     const DEST_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     const SOURCE_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
@@ -123,12 +121,21 @@ mod tests {
         //  -> IP Header Checksum
         //  -> ICMP Checksum, Identifier, Sequence Number, and Timestamp
 
-        let ref_bytes: [u8; 98] = get_wireshark_bytes("test_ethernet_frame_sent.txt").try_into().unwrap();
-        let (source_mac,_) = get_local_mac_ip();
-        let source_mac: [u8;6] = source_mac.try_into().unwrap();
-        let dest_mac: [u8;6] = get_wireshark_bytes("test_default_gateway_mac.txt").try_into().unwrap();
+        let ref_bytes: [u8; 98] = get_wireshark_bytes("test_ethernet_frame_sent.txt")
+            .try_into()
+            .unwrap();
+        let (source_mac, _) = get_local_mac_ip();
+        let source_mac: [u8; 6] = source_mac.try_into().unwrap();
+        let dest_mac: [u8; 6] = get_wireshark_bytes("test_default_gateway_mac.txt")
+            .try_into()
+            .unwrap();
         let icmp_packet = icmp::IcmpRequest::new();
-        let ipv4_packet = Ipv4::new([192, 168, 100, 16], [8, 8, 8, 8], icmp_packet.raw_bytes().clone(), PacketType::IcmpRequest); 
+        let ipv4_packet = Ipv4::new(
+            [192, 168, 100, 16],
+            [8, 8, 8, 8],
+            icmp_packet.raw_bytes().clone(),
+            PacketType::IcmpRequest,
+        );
         let eth_packet = EthernetFrame::new(
             &[0x08, 0x00],
             &ipv4_packet.entire_packet,
@@ -151,15 +158,17 @@ mod tests {
         //received_bytes are taken contents of icmp reply received from 8.8.8.8 after pinging from Linux.
         let received_bytes = &get_wireshark_bytes("test_ethernet_frame_reply.txt")[..];
         let received_payload_bytes = &get_wireshark_bytes("test_ethernet_frame_reply_payload.txt");
-        let (dest_mac,_) = get_local_mac_ip();
-        let dest_mac: [u8;6] = dest_mac.try_into().unwrap();
-        let source_mac: [u8;6] = get_wireshark_bytes("test_default_gateway_mac.txt").try_into().unwrap();
+        let (dest_mac, _) = get_local_mac_ip();
+        let dest_mac: [u8; 6] = dest_mac.try_into().unwrap();
+        let source_mac: [u8; 6] = get_wireshark_bytes("test_default_gateway_mac.txt")
+            .try_into()
+            .unwrap();
         let expected = EthernetFrame {
             dest_mac: &dest_mac,
             source_mac: &source_mac,
             ether_type: &[0x08, 0x00],
             payload: &vec![0; 84], //Not interested in contents of payload but the length should be correct
-            fcs: [0, 0, 0, 0], //Not interested in comparing fcs
+            fcs: [0, 0, 0, 0],     //Not interested in comparing fcs
             raw_bytes: vec![0; 98], //Just interested in the length
         };
 
@@ -169,6 +178,6 @@ mod tests {
         assert_eq!(test_eth_frame.source_mac, expected.source_mac);
         assert_eq!(test_eth_frame.ether_type, expected.ether_type);
         assert_eq!(test_eth_frame.payload.len(), expected.payload.len());
-        assert_eq!(test_eth_frame.raw_bytes.len()-4, received_bytes.len()); //-4 becase of fcs
+        assert_eq!(test_eth_frame.raw_bytes.len() - 4, received_bytes.len()); //-4 becase of fcs
     }
 }
