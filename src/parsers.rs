@@ -23,9 +23,9 @@ fn parse_bits_chunk<'a, E: ParseError<(&'a [u8], usize)>>(
 }
 
 /*For use when I need to get specific bits from a byte or bytes.
- * For example version and ihl from first byte,
- * or flags and fragment offset where 3 bits and then 13 bits taken from 2 bytes.
- * It only returns a tuple of two.
+ * For example when pasing an ipv4 packet, the version and ihl are
+ * contained in the first four and second four bits of the first byte
+ * respectively. This parser is only capable of returning a tuple of two.
  * */
 fn parse_adhoc_bits<'a, E>(
     first_bits: usize,
