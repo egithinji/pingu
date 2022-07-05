@@ -1,7 +1,6 @@
 # pingu
-Pingu is a playground for implementing network protocols and utilities in Rust. For any utility, the aim is to successfully communicate with a real world host. For example it contains an implementation of [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility)), that aims to satisfy pages 14 and 15 of [RFC 792](https://datatracker.ietf.org/doc/html/rfc792).
+Pingu is a playground for implementing network protocols and utilities in Rust. For any utility, the aim is to successfully communicate with a real world host. For example it contains an implementation of [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility)), that aims to satisfy pages 14 and 15 of [RFC 792](https://datatracker.ietf.org/doc/html/rfc792):
 
-## Screenshot
 ![Screenshot](docs/images/pingu_screenshot.png)
 
 ## Why
@@ -26,7 +25,7 @@ cargo build --release
 ```
 sudo setcap cap_net_raw,cap_net_admin=eip path/to/pingu/target/release
 ```
-* Add binary to PATH. Add the following to your ~/.bashrc:
+* Add binary to PATH by adding the following to your ~/.bashrc:
 ```
 export PATH=path/to/pingu/target/release
 
