@@ -199,6 +199,7 @@ pub async fn request_and_response<'a>(
     }
 }
 
+//For use in tests. Retreives bytes from a local file captured from wireshark
 pub fn get_wireshark_bytes(file_name: &str) -> Vec<u8> {
     let file = File::open(file_name).unwrap();
     let mut buf_reader = BufReader::new(file);
