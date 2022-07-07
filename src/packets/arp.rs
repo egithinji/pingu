@@ -11,10 +11,10 @@ pub struct ArpRequest<'a> {
     pub hlen: u8,      //hardware address length
     pub plen: u8,      //protocol address length
     pub oper: u16, //operation
-    pub sha: &'a [u8],
-    pub spa: &'a [u8],
-    pub tha: &'a [u8],
-    pub tpa: &'a [u8],
+    pub sha: &'a [u8], //sender hardware address
+    pub spa: &'a [u8], //sender protocol address
+    pub tha: &'a [u8], //target hardware address
+    pub tpa: &'a [u8], //target protocol address
     pub raw_bytes: Vec<u8>,
 }
 
@@ -148,39 +148,4 @@ mod tests {
         assert_eq!(&target_mac, mac);
     }
 
-    #[test]
-    fn valid_arp_packet_created_from_bytes() {
-        let received_bytes = &get_wireshark_bytes("test_arp_reply_bytes.txt")[..];
-
-        let (tha, _) = get_local_mac_ip();
-        let tha: [u8; 6] = tha.try_into().unwrap();
-        let sha: [u8; 6] = get_wireshark_bytes("test_target_mac.txt")
-            .try_into()
-            .unwrap();
-
-        let expected = ArpRequest {
-            htype: 1,
-            ptype: 0x0800,
-            hlen: 6,
-            plen: 4,
-            oper: 2, //coz we're capturing a reply not a request
-            sha: &sha,
-            spa: &[192, 168, 100, 129],
-            tha: &tha,
-            tpa: &[192, 168, 100, 16],
-            raw_bytes: Vec::new(),
-        };
-
-        let test_arp_packet = ArpRequest::try_from(received_bytes).unwrap();
-
-        assert_eq!(test_arp_packet.htype, expected.htype);
-        assert_eq!(test_arp_packet.ptype, expected.ptype);
-        assert_eq!(test_arp_packet.hlen, expected.hlen);
-        assert_eq!(test_arp_packet.plen, expected.plen);
-        assert_eq!(test_arp_packet.oper, expected.oper);
-        assert_eq!(test_arp_packet.sha, expected.sha);
-        assert_eq!(test_arp_packet.spa, expected.spa);
-        assert_eq!(test_arp_packet.tha, expected.tha);
-        assert_eq!(test_arp_packet.tpa, expected.tpa);
     }
-}

@@ -10,6 +10,523 @@ use nom::sequence::tuple;
 use nom::IResult;
 use nom::Parser;
 
+struct IcmpType(u8);
+struct IcmpCode(u8);
+struct IcmpChecksum(u16);
+struct IcmpIdentifier(u16);
+struct IcmpSeqNumber(u16);
+struct IcmpData(Vec<u8>);
+
+struct ArpHtype(u16); //hardware type
+struct ArpPtype(u16); //arp protocol type
+struct ArpHlen(u8); //hardware addr length
+struct ArpPlen(u8); //protocol addr length
+struct ArpOper(u16); //operation
+struct ArpSha<'a>(&'a [u8]); //sender hardware address
+struct ArpSpa<'a>(&'a [u8]); //sender protocol address
+struct ArpTha<'a>(&'a [u8]); //target hardware address
+struct ArpTpa<'a>(&'a [u8]); //target protocol address
+
+struct Ipv4Version(u16);
+struct Ipv4Ihl(u16);
+struct Ipv4Tos(u8);
+struct Ipv4TotalLength(u16);
+struct Ipv4Identification(u16);
+struct Ipv4Flags(u8);
+struct Ipv4FragmentOffset(u16);
+struct Ipv4Ttl(u8);
+struct Ipv4Protocol(u8);
+struct Ipv4HeaderChecksum(u16);
+struct Ipv4SourceAddress([u8; 4]);
+struct Ipv4DestAddress([u8; 4]);
+struct Ipv4Payload(Vec<u8>);
+
+struct EthDestMac<'a>(&'a [u8]);
+struct EthSourceMac<'a>(&'a [u8]);
+struct EthEtherType<'a>(&'a [u8]);
+struct EthPayload<'a>(&'a [u8]);
+
+const TCPBYTESBEFOREOPTIONS: usize = 20;
+struct TcpSrcPort(u16);
+struct TcpDstPort(u16);
+struct TcpSeqNum(u32);
+struct TcpAckNum(u32);
+struct TcpDataOffset(u8);
+struct TcpReserved(u8);
+struct TcpUrg(bool);
+struct TcpAck(bool);
+struct TcpPsh(bool);
+struct TcpRst(bool);
+struct TcpSyn(bool);
+struct TcpFin(bool);
+struct TcpWindow(u16);
+struct TcpChecksum(u16);
+struct TcpUrgentPointer(u16);
+struct TcpOptions(Vec<u8>);
+struct TcpData(Vec<u8>);
+
+fn parse_icmp_type<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpType, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, byte)) => {
+            let icmp_type = IcmpType(byte[0]);
+            Ok((remainder, icmp_type))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_icmp_code<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpCode, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, byte)) => {
+            let icmp_code = IcmpCode(byte[0]);
+            Ok((remainder, icmp_code))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_icmp_checksum<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpChecksum, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let icmp_checksum = IcmpChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, icmp_checksum))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_icmp_identifier<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpIdentifier, E>
+{
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let icmp_identifier = IcmpIdentifier(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, icmp_identifier))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_icmp_seq_number<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpSeqNumber, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let icmp_seq_number = IcmpSeqNumber(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, icmp_seq_number))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_icmp_data<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpData, E> {
+    move |input: &'a [u8]| match take(input.len() as usize)(input) {
+        Ok((remainder, bytes)) => {
+            let icmp_seq_number = IcmpData(bytes.to_vec());
+            Ok((remainder, icmp_seq_number))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_htype<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpHtype, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_htype = ArpHtype(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, arp_htype))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_ptype<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpPtype, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_ptype = ArpPtype(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, arp_ptype))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_hlen<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpHlen, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_hlen = ArpHlen(u8::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, arp_hlen))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_plen<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpPlen, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_plen = ArpPlen(u8::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, arp_plen))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_oper<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpOper, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_oper = ArpOper(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, arp_oper))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_sha<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpSha<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_sha = ArpSha(bytes);
+            Ok((remainder, arp_sha))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_spa<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpSpa<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_sha = ArpSpa(bytes);
+            Ok((remainder, arp_sha))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_tha<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpTha<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_tha = ArpTha(bytes);
+            Ok((remainder, arp_tha))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_arp_tpa<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], ArpTpa<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => {
+            let arp_tpa = ArpTpa(bytes);
+            Ok((remainder, arp_tpa))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_version_and_ihl<'a, E>() -> impl Parser<&'a [u8], (Ipv4Version, Ipv4Ihl), E> {
+    move |bytes| {
+        let (remainder, byte) = parse_byte_chunk::<'a, ()>(1usize).parse(bytes).unwrap();
+        let (tail, version) = parse_bits_chunk::<'a, ()>(4usize).parse((byte, 0)).unwrap();
+        let (_, ihl) = parse_bits_chunk::<'a, ()>(4usize).parse(tail).unwrap();
+        Ok((remainder, (Ipv4Version(version), Ipv4Ihl(ihl))))
+    }
+}
+
+fn parse_ipv4_type_of_service<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Tos, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_tos = Ipv4Tos(u8::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_tos))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_total_length<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], Ipv4TotalLength, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_total_length = Ipv4TotalLength(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_total_length))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_identification<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], Ipv4Identification, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_identification =
+                Ipv4Identification(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_identification))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_flags_and_fragoffset<'a, E>(
+) -> impl Parser<&'a [u8], (Ipv4Flags, Ipv4FragmentOffset), E> {
+    move |bytes| {
+        let (remainder, bytes) = parse_byte_chunk::<'a, ()>(2usize).parse(bytes).unwrap();
+        let (tail, flags) = parse_bits_chunk::<'a, ()>(3usize)
+            .parse((bytes, 0))
+            .unwrap();
+        let (_, fragment_offset) = parse_bits_chunk::<'a, ()>(13usize).parse(tail).unwrap();
+
+        Ok((
+            remainder,
+            (Ipv4Flags(flags as u8), Ipv4FragmentOffset(fragment_offset)),
+        ))
+    }
+}
+
+fn parse_ipv4_ttl<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Ttl, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_ttl = Ipv4Ttl(u8::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_ttl))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_protocol<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Protocol, E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_protocol = Ipv4Protocol(u8::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_protocol))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_header_checksum<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], Ipv4HeaderChecksum, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_header_checksum =
+                Ipv4HeaderChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, ipv4_header_checksum))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_source_address<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], Ipv4SourceAddress, E> {
+    move |input: &'a [u8]| match take(4usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_source_address = Ipv4SourceAddress(bytes.try_into().unwrap());
+            Ok((remainder, ipv4_source_address))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_dest_address<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], Ipv4DestAddress, E> {
+    move |input: &'a [u8]| match take(4usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_dest_address = Ipv4DestAddress(bytes.try_into().unwrap());
+            Ok((remainder, ipv4_dest_address))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_ipv4_payload<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Payload, E> {
+    move |input: &'a [u8]| match take(input.len() as usize)(input) {
+        Ok((remainder, bytes)) => {
+            let ipv4_payload = Ipv4Payload(bytes.to_vec());
+            Ok((remainder, ipv4_payload))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_eth_dest_mac<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthDestMac<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => Ok((remainder, EthDestMac(bytes))),
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_eth_src_mac<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthSourceMac<'a>, E> {
+    move |input: &'a [u8]| match take(6usize)(input) {
+        Ok((remainder, bytes)) => Ok((remainder, EthSourceMac(bytes))),
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_eth_eth_type<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthEtherType<'a>, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => Ok((remainder, EthEtherType(bytes))),
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_eth_payload<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthPayload<'a>, E> {
+    move |input: &'a [u8]| match take(input.len())(input) {
+        Ok((remainder, bytes)) => Ok((remainder, EthPayload(bytes))),
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_src_port<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpSrcPort, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_src_port = TcpSrcPort(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_src_port))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_dst_port<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpDstPort, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_dst_port = TcpDstPort(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_dst_port))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_seq_num<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpSeqNum, E> {
+    move |input: &'a [u8]| match take(4usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_seq_num = TcpSeqNum(u32::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_seq_num))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_ack_num<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpAckNum, E> {
+    move |input: &'a [u8]| match take(4usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_ack_num = TcpAckNum(u32::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_ack_num))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_dataoffset_and_reserved<'a, E>(
+) -> impl Parser<&'a [u8], (TcpDataOffset, TcpReserved), E> {
+    move |bytes| {
+        let (remainder, bytes) = parse_byte_chunk::<'a, ()>(1usize).parse(bytes).unwrap();
+        let (tail, data_offset) = parse_bits_chunk::<'a, ()>(4usize)
+            .parse((bytes, 0))
+            .unwrap();
+        let (_, reserved) = parse_bits_chunk::<'a, ()>(4usize).parse(tail).unwrap();
+
+        Ok((
+            remainder,
+            (
+                TcpDataOffset(data_offset as u8),
+                TcpReserved(reserved as u8),
+            ),
+        ))
+    }
+}
+
+fn parse_tcp_flags<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], (TcpUrg, TcpAck, TcpPsh, TcpRst, TcpSyn, TcpFin), E> {
+    move |input: &'a [u8]| match take(1usize)(input) {
+        Ok((remainder, byte)) => {
+            let (_, urg): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 2)) //offset is 2 because first two bits are part of reserved bits
+                .unwrap();
+            let (_, ack): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 3))
+                .unwrap();
+            let (_, psh): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 4))
+                .unwrap();
+            let (_, rst): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 5))
+                .unwrap();
+            let (_, syn): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 6))
+                .unwrap();
+            let (_, fin): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
+                .parse((byte, 7))
+                .unwrap();
+
+            Ok((
+                remainder,
+                (
+                    TcpUrg(urg == 1),
+                    TcpAck(ack == 1),
+                    TcpPsh(psh == 1),
+                    TcpRst(rst == 1),
+                    TcpSyn(syn == 1),
+                    TcpFin(fin == 1),
+                ),
+            ))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_window<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpWindow, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_window = TcpWindow(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_window))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_checksum<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpChecksum, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_checksum = TcpChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_checksum))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_urgent_pointer<'a, E: ParseError<&'a [u8]>>(
+) -> impl Parser<&'a [u8], TcpUrgentPointer, E> {
+    move |input: &'a [u8]| match take(2usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_urgent_pointer =
+                TcpUrgentPointer(u16::from_be_bytes(bytes.try_into().unwrap()));
+            Ok((remainder, tcp_urgent_pointer))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_options<'a, E: ParseError<&'a [u8]>>(
+    byte: u8,
+) -> impl Parser<&'a [u8], TcpOptions, E> {
+    //use data offset to determine start of data
+    let byte = byte.to_be_bytes(); //the byte containing data offset value
+    let (_, start_of_data): ((&[u8], usize), u8) =
+        nom::bits::complete::take::<&[u8], u8, u8, ()>(4)
+            .parse((&byte, 0))
+            .unwrap();
+
+    let start_of_data: usize = ((start_of_data as u16 * 32) / 8) as usize;
+
+    move |input: &'a [u8]| match take(start_of_data - TCPBYTESBEFOREOPTIONS as usize)(input) {
+        Ok((remainder, bytes)) => {
+            let options = TcpOptions(bytes.to_vec());
+            Ok((remainder, options))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_tcp_data<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpData, E> {
+    move |input: &'a [u8]| match take(input.len() as usize)(input) {
+        Ok((remainder, bytes)) => {
+            let tcp_data = TcpData(bytes.to_vec());
+            Ok((remainder, tcp_data))
+        }
+        Err(e) => Err(e),
+    }
+}
+
 fn parse_byte_chunk<'a, E: ParseError<&'a [u8]>>(
     chunk_size: usize,
 ) -> impl Parser<&'a [u8], &'a [u8], E> {
@@ -45,27 +562,27 @@ fn parse_adhoc_bits<'a, E>(
 
 pub fn parse_icmp(bytes: &[u8]) -> IResult<&[u8], IcmpRequest> {
     let mut operation = tuple((
-        parse_byte_chunk(1),
-        parse_byte_chunk(1),
-        parse_byte_chunk(2),
-        parse_byte_chunk(2),
-        parse_byte_chunk(2),
-        parse_byte_chunk(48),
+        parse_icmp_type(),
+        parse_icmp_code(),
+        parse_icmp_checksum(),
+        parse_icmp_identifier(),
+        parse_icmp_seq_number(),
+        parse_icmp_data(),
     ));
 
     let (left_over, (icmp_type, code, icmp_checksum, identifier, sequence_number, data)) =
         operation.parse(bytes)?;
 
-    let data: [u8; 48] = data.try_into().unwrap();
+    let data: [u8; 48] = data.0.try_into().unwrap();
 
     Ok((
         left_over,
         IcmpRequest {
-            icmp_type: icmp_type[0],
-            code: code[0],
-            icmp_checksum: u16::from_be_bytes(icmp_checksum.try_into().unwrap()),
-            identifier: u16::from_be_bytes(identifier.try_into().unwrap()),
-            sequence_number: u16::from_be_bytes(sequence_number.try_into().unwrap()),
+            icmp_type: icmp_type.0,
+            code: code.0,
+            icmp_checksum: icmp_checksum.0,
+            identifier: identifier.0,
+            sequence_number: sequence_number.0,
             data,
             raw_icmp_bytes: Vec::new(),
         },
@@ -74,15 +591,15 @@ pub fn parse_icmp(bytes: &[u8]) -> IResult<&[u8], IcmpRequest> {
 
 pub fn parse_arp(bytes: &[u8]) -> IResult<&[u8], ArpRequest> {
     let mut operation = tuple((
-        parse_byte_chunk(2), //htype
-        parse_byte_chunk(2), //ptype
-        parse_byte_chunk(1), //hlen
-        parse_byte_chunk(1), //plen
-        parse_byte_chunk(2), //oper
-        parse_byte_chunk(6), //sha
-        parse_byte_chunk(4), //spa
-        parse_byte_chunk(6), //tha
-        parse_byte_chunk(4), //tpa
+        parse_arp_htype(), 
+        parse_arp_ptype(),
+        parse_arp_hlen(),
+        parse_arp_plen(),
+        parse_arp_oper(),
+        parse_arp_sha(),
+        parse_arp_spa(),
+        parse_arp_tha(),
+        parse_arp_tpa(),
     ));
 
     let (left_over, (htype, ptype, hlen, plen, oper, sha, spa, tha, tpa)) =
@@ -91,36 +608,33 @@ pub fn parse_arp(bytes: &[u8]) -> IResult<&[u8], ArpRequest> {
     Ok((
         left_over,
         ArpRequest {
-            htype: u16::from_be_bytes(htype.try_into().unwrap()),
-            ptype: u16::from_be_bytes(ptype.try_into().unwrap()),
-            hlen: hlen[0],
-            plen: plen[0],
-            oper: u16::from_be_bytes(oper.try_into().unwrap()),
-            sha: sha.try_into().unwrap(),
-            spa: spa.try_into().unwrap(),
-            tha: tha.try_into().unwrap(),
-            tpa: tpa.try_into().unwrap(),
+            htype: htype.0,
+            ptype: ptype.0,
+            hlen: hlen.0,
+            plen: plen.0,
+            oper: oper.0,
+            sha: sha.0,
+            spa: spa.0,
+            tha: tha.0,
+            tpa: tpa.0,
             raw_bytes: Vec::new(),
         },
     ))
 }
 
 pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
-    let (_, start_of_data) = parse_adhoc_bits::<()>(4, 4, 1).parse(bytes).unwrap();
-    let start_of_data: usize = ((start_of_data.1 * 32) / 8) as usize;
-
     let mut operation = tuple((
-        parse_adhoc_bits(4, 4, 1),                     //version and ihl
-        parse_byte_chunk(1),                           //type_of_service
-        parse_byte_chunk(2),                           //total_length
-        parse_byte_chunk(2),                           //identification
-        parse_adhoc_bits(3, 13, 2),                    //flags and frag offset
-        parse_byte_chunk(1),                           //ttl
-        parse_byte_chunk(1),                           //protocol
-        parse_byte_chunk(2),                           //header checksum
-        parse_byte_chunk(4),                           //source address
-        parse_byte_chunk(4),                           //dest address
-        parse_byte_chunk(bytes.len() - start_of_data), //data
+        parse_ipv4_version_and_ihl(),
+        parse_ipv4_type_of_service(),
+        parse_ipv4_total_length(),
+        parse_ipv4_identification(),
+        parse_ipv4_flags_and_fragoffset(),
+        parse_ipv4_ttl(),
+        parse_ipv4_protocol(),
+        parse_ipv4_header_checksum(),
+        parse_ipv4_source_address(),
+        parse_ipv4_dest_address(),
+        parse_ipv4_payload(),
     ));
 
     let (
@@ -143,19 +657,19 @@ pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
     Ok((
         left_over,
         Ipv4 {
-            version: version,
-            ihl: ihl,
-            type_of_service: type_of_service[0],
-            total_length: u16::from_be_bytes(total_length.try_into().unwrap()),
-            identification: u16::from_be_bytes(identification.try_into().unwrap()),
-            flags: flags as u8,
-            fragment_offset,
-            ttl: ttl[0],
-            protocol: protocol[0],
-            header_checksum: u16::from_be_bytes(header_checksum.try_into().unwrap()),
-            source_address: source_address.try_into().unwrap(),
-            dest_address: dest_address.try_into().unwrap(),
-            payload: data.to_vec(),
+            version: version.0,
+            ihl: ihl.0,
+            type_of_service: type_of_service.0,
+            total_length: total_length.0,
+            identification: identification.0,
+            flags: flags.0,
+            fragment_offset: fragment_offset.0,
+            ttl: ttl.0,
+            protocol: protocol.0,
+            header_checksum: header_checksum.0,
+            source_address: source_address.0,
+            dest_address: dest_address.0,
+            payload: data.0,
             raw_ip_header_bytes: Vec::new(),
             entire_packet: Vec::new(),
             packet_type: PacketType::IcmpRequest,
@@ -165,41 +679,33 @@ pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
 
 pub fn parse_ethernet(bytes: &[u8]) -> IResult<&[u8], EthernetFrame> {
     let mut operation = tuple((
-        parse_byte_chunk(6),                //dest_mac
-        parse_byte_chunk(6),                //source_mac
-        parse_byte_chunk(2),                //eth_type
-        parse_byte_chunk(bytes.len() - 14), //payload
+        parse_eth_dest_mac(),
+        parse_eth_src_mac(),
+        parse_eth_eth_type(),
+        parse_eth_payload(),
     ));
 
     let (left_over, (dest_mac, source_mac, eth_type, payload)) = operation.parse(bytes)?;
 
-    let e = EthernetFrame::new(eth_type, payload, dest_mac, source_mac);
+    let e = EthernetFrame::new(eth_type.0, payload.0, dest_mac.0, source_mac.0);
 
     Ok((left_over, e))
 }
 
 pub fn parse_tcp(bytes: &[u8]) -> IResult<&[u8], Tcp> {
-    let thirteenth_byte = &bytes[12].to_be_bytes(); //the byte containing data offset value
-    let (_, start_of_data): ((&[u8], usize), u8) =
-        nom::bits::complete::take::<&[u8], u8, u8, ()>(4)
-            .parse((thirteenth_byte, 0))
-            .unwrap();
-
-    let start_of_data: u16 = start_of_data as u16;
-    let start_of_data: usize = ((start_of_data * 32) / 8) as usize;
 
     let mut operation = tuple((
-        parse_byte_chunk(2),       //src_port
-        parse_byte_chunk(2),       //dst_port
-        parse_byte_chunk(4),       //seq_number
-        parse_byte_chunk(4),       //ack_number
-        parse_adhoc_bits(4, 4, 1), //data offset
-        parse_adhoc_bits(2, 6, 1), //flags (individual flags separated after operation
-        parse_byte_chunk(2),       //window
-        parse_byte_chunk(2),       //checksum
-        parse_byte_chunk(2),       //urgent_pointer
-        parse_byte_chunk(start_of_data - 20), //options
-        parse_byte_chunk(bytes.len() - start_of_data), //data
+        parse_tcp_src_port(),
+        parse_tcp_dst_port(),
+        parse_tcp_seq_num(),
+        parse_tcp_ack_num(),
+        parse_tcp_dataoffset_and_reserved(),
+        parse_tcp_flags(),
+        parse_tcp_window(),
+        parse_tcp_checksum(),
+        parse_tcp_urgent_pointer(),
+        parse_tcp_options(bytes[12]),
+        parse_tcp_data(),
     ));
 
     let (
@@ -209,8 +715,8 @@ pub fn parse_tcp(bytes: &[u8]) -> IResult<&[u8], Tcp> {
             dst_port,
             seq_number,
             ack_number,
-            (data_offset, _),
-            (_, flags),
+            (data_offset, reserved),
+            (urg, ack, psh, rst, syn, fin),
             window,
             checksum,
             urgent_pointer,
@@ -219,47 +725,26 @@ pub fn parse_tcp(bytes: &[u8]) -> IResult<&[u8], Tcp> {
         ),
     ) = operation.parse(bytes)?;
 
-    let flags: [u8;1] = [flags as u8];
-
-    let (_, urg): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 2))
-        .unwrap();
-    let (_, ack): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 3))
-        .unwrap();
-    let (_, psh): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 4))
-        .unwrap();
-    let (_, rst): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 5))
-        .unwrap();
-    let (_, syn): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 6))
-        .unwrap();
-    let (_, fyn): ((&[u8], usize), u8) = nom::bits::complete::take::<&[u8], u8, u8, ()>(1)
-        .parse((&flags, 7))
-        .unwrap();
-    
     Ok((
         left_over,
         Tcp {
-            src_port: u16::from_be_bytes(src_port.try_into().unwrap()),
-            dst_port: u16::from_be_bytes(dst_port.try_into().unwrap()),
-            seq_number: u32::from_be_bytes(seq_number.try_into().unwrap()),
-            ack_number: u32::from_be_bytes(ack_number.try_into().unwrap()),
-            data_offset: data_offset as u8,
-            reserved: 0,
-            urg: urg == 1u8,
-            ack: ack == 1u8,
-            psh: psh == 1u8,
-            rst: rst == 1u8,
-            syn: syn == 1u8,
-            fin: fyn == 1u8,
-            window: u16::from_be_bytes(window.try_into().unwrap()),
-            checksum: u16::from_be_bytes(checksum.try_into().unwrap()),
-            urgent_pointer: u16::from_be_bytes(urgent_pointer.try_into().unwrap()),
-            options: options.to_vec(),
-            data: data.to_vec(),
+            src_port: src_port.0,
+            dst_port: dst_port.0,
+            seq_number: seq_number.0,
+            ack_number: ack_number.0,
+            data_offset: data_offset.0,
+            reserved: reserved.0,
+            urg: urg.0,
+            ack: ack.0,
+            psh: psh.0,
+            rst: rst.0,
+            syn: syn.0,
+            fin: fin.0,
+            window: window.0,
+            checksum: checksum.0,
+            urgent_pointer: urgent_pointer.0,
+            options: options.0,
+            data: data.0,
             raw_tcp_header_bytes: Vec::new(),
             entire_packet: Vec::new(),
         },

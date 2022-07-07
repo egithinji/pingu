@@ -19,7 +19,7 @@ const SYSFS_PATH: &str = "/sys/class/net/";
 const SYSFS_FILENAME: &str = "/address";
 
 pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static str> {
-    let (local_mac, local_ip) = utilities::get_local_mac_ip();
+    let (local_mac, local_ip) = get_local_mac_ip();
 
     let icmp_packet = IcmpRequest::new();
     let ipv4_packet = ipv4::Ipv4::new(

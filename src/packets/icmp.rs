@@ -156,35 +156,5 @@ mod tests {
     fn calculate_checksum_works() {
         unimplemented!();
     }
-
-    #[test]
-    fn valid_icmp_packet_created_from_bytes() {
-        //received_bytes are taken contents of icmp reply received from 8.8.8.8 after pinging from Linux.
-        let received_bytes = &[
-            0x00, 0x00, 0x1a, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
-            0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29,
-            0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-        ]
-        .to_vec()[..];
-
-        let expected = IcmpRequest {
-            icmp_type: 0,
-            code: 0,
-            icmp_checksum: 6910,
-            identifier: 0,
-            sequence_number: 0,
-            data: DATA,
-            raw_icmp_bytes: Vec::new(),
-        };
-
-        let test_icmp_packet = IcmpRequest::try_from(received_bytes).unwrap();
-
-        assert_eq!(test_icmp_packet.icmp_type, expected.icmp_type);
-        assert_eq!(test_icmp_packet.code, expected.code);
-        assert_eq!(test_icmp_packet.icmp_checksum, expected.icmp_checksum);
-        assert_eq!(test_icmp_packet.identifier, expected.identifier);
-        assert_eq!(test_icmp_packet.sequence_number, expected.sequence_number);
-        assert_eq!(test_icmp_packet.data, expected.data);
-    }
+    
 }
