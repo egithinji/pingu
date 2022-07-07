@@ -3,7 +3,7 @@ use crate::packets::ethernet;
 use crate::packets::icmp;
 use crate::packets::icmp::IcmpRequest;
 use crate::packets::ipv4;
-use crate::senders::{raw_send, Packet, PacketType};
+use crate::senders::{raw_send, Packet};
 use crate::utilities;
 use pcap;
 use pcap::Device;
@@ -26,7 +26,6 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
         local_ip.octets(),
         dest_ip.octets(),
         icmp_packet.raw_bytes().clone(),
-        PacketType::IcmpRequest,
     );
 
     let dest_mac: Vec<u8> = if dest_ip.is_private() {
@@ -218,12 +217,7 @@ mod tests {
 
     use super::get_local_mac_ip;
     use super::*;
-    use crate::packets::{arp, ethernet, icmp, ipv4}; 
-    use crate::{senders, utilities};
-    use default_net;
-    use pcap::Device;
     use std::net;
-    use std::{thread, time};
 
     #[test]
     fn returns_correct_ip_and_mac_for_default_device() {

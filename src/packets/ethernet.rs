@@ -1,5 +1,5 @@
-use crate::parsers::parse_ethernet;
-use crate::senders::{Packet, PacketType};
+use crate::parsers::ethernet_parser::parse_ethernet;
+use crate::senders::{Packet};
 use crc32fast;
 
 pub struct EthernetFrame<'a> {
@@ -87,11 +87,7 @@ impl<'a> Packet for EthernetFrame<'a> {
     fn raw_bytes(&self) -> &Vec<u8> {
         &self.raw_bytes
     }
-
-    fn packet_type(&self) -> PacketType {
-        PacketType::Ethernet
-    }
-
+    
     fn dest_address(&self) -> Option<Vec<u8>> {
         Some(self.dest_mac.to_vec())
     }
@@ -106,7 +102,7 @@ mod tests {
     use super::EthernetFrame;
     use crate::packets::icmp;
     use crate::packets::ipv4::Ipv4;
-    use crate::senders::{Packet, PacketType};
+    use crate::senders::{Packet};
     use crate::utilities::{get_local_mac_ip, get_wireshark_bytes};
     const DEST_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     const SOURCE_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
@@ -134,7 +130,6 @@ mod tests {
             [192, 168, 100, 16],
             [8, 8, 8, 8],
             icmp_packet.raw_bytes().clone(),
-            PacketType::IcmpRequest,
         );
         let eth_packet = EthernetFrame::new(
             &[0x08, 0x00],

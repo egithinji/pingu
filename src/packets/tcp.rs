@@ -1,4 +1,4 @@
-use crate::parsers::parse_tcp;
+use crate::parsers::tcp_parser::parse_tcp;
 use rand::{thread_rng, Rng};
 
 pub struct Tcp {

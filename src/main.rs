@@ -1,5 +1,5 @@
 use pingu::packets::{arp,ethernet,icmp::IcmpRequest,ipv4};
-use pingu::senders::{Packet, PacketType};
+use pingu::senders::{Packet};
 use pingu::utilities;
 use std::env;
 use std::net;

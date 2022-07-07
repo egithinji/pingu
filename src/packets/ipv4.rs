@@ -1,5 +1,5 @@
-use crate::parsers::parse_ipv4;
-use crate::senders::{Packet, PacketType};
+use crate::parsers::ipv4_parser::parse_ipv4;
+use crate::senders::{Packet};
 
 const FLAGSANDOFFSET: u16 = 16384_u16;
 const HEADER_LENGTH: u16 = 20;
@@ -20,11 +20,10 @@ pub struct Ipv4 {
     pub payload: Vec<u8>,
     pub raw_ip_header_bytes: Vec<u8>,
     pub entire_packet: Vec<u8>,
-    pub packet_type: PacketType,
 }
 
 impl Ipv4 {
-    pub fn new(source: [u8; 4], dest: [u8; 4], payload: Vec<u8>, packet_type: PacketType) -> Self {
+    pub fn new(source: [u8; 4], dest: [u8; 4], payload: Vec<u8>) -> Self {
         let mut temp = Ipv4 {
             version: 4,
             ihl: 5,
@@ -41,7 +40,6 @@ impl Ipv4 {
             payload,
             raw_ip_header_bytes: Vec::new(),
             entire_packet: Vec::new(),
-            packet_type,
         };
 
         temp = Ipv4::set_raw_ip_header_bytes(temp);
@@ -134,10 +132,6 @@ impl Packet for Ipv4 {
         &self.entire_packet
     }
 
-    fn packet_type(&self) -> PacketType {
-        self.packet_type.clone()
-    }
-
     fn dest_address(&self) -> Option<Vec<u8>> {
         Some(self.dest_address.to_vec())
     }
@@ -159,7 +153,7 @@ impl<'a> TryFrom<&'a [u8]> for Ipv4 {
 #[cfg(test)]
 mod tests {
     use super::{calculate_checksum, Ipv4};
-    use crate::senders::{Packet, PacketType};
+    use crate::senders::{Packet};
 
     #[test]
     fn raw_ip_bytes_works() {
@@ -178,7 +172,6 @@ mod tests {
             [192, 168, 100, 16],
             [8, 8, 8, 8],
             Vec::new(),
-            PacketType::IcmpRequest,
         );
 
         assert_eq!(ref_bytes[0..2], ipv4_packet.raw_ip_header_bytes[0..2]);

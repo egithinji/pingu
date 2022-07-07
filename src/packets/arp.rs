@@ -1,9 +1,8 @@
 use crate::senders::Packet;
-use crate::senders::PacketType;
 use crate::packets::ethernet;
 use crate::utilities;
 use nom::error::ParseError;
-use crate::parsers::parse_arp;
+use crate::parsers::arp_parser::parse_arp;
 
 pub struct ArpRequest<'a> {
     pub htype: u16,    //hardware type
@@ -56,10 +55,6 @@ impl<'a> ArpRequest<'a> {
 impl<'a> Packet for ArpRequest<'a> {
     fn raw_bytes(&self) -> &Vec<u8> {
         &self.raw_bytes
-    }
-
-    fn packet_type(&self) -> PacketType {
-        PacketType::Arp
     }
 
     fn dest_address(&self) -> Option<Vec<u8>> {

@@ -1,6 +1,5 @@
-use crate::parsers::parse_icmp;
+use crate::parsers::icmp_parser::parse_icmp;
 use crate::senders::Packet;
-use crate::senders::PacketType;
 use nom::error::ParseError;
 use nom::*;
 
@@ -98,10 +97,6 @@ fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
 impl Packet for IcmpRequest {
     fn raw_bytes(&self) -> &Vec<u8> {
         &self.raw_icmp_bytes
-    }
-
-    fn packet_type(&self) -> PacketType {
-        PacketType::IcmpRequest
     }
 
     fn dest_address(&self) -> Option<Vec<u8>> {
