@@ -23,7 +23,7 @@ pub struct Ipv4 {
 }
 
 impl Ipv4 {
-    pub fn new(source: [u8; 4], dest: [u8; 4], payload: Vec<u8>) -> Self {
+    pub fn new(source: [u8; 4], dest: [u8; 4], protocol: u8, payload: Vec<u8>) -> Self {
         let mut temp = Ipv4 {
             version: 4,
             ihl: 5,
@@ -33,7 +33,7 @@ impl Ipv4 {
             flags: 0,
             fragment_offset: 0,
             ttl: 64,
-            protocol: 1,
+            protocol,
             header_checksum: 0,
             source_address: source,
             dest_address: dest,
