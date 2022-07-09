@@ -153,7 +153,6 @@ impl<'a> TryFrom<&'a [u8]> for Ipv4 {
 #[cfg(test)]
 mod tests {
     use super::{calculate_checksum, Ipv4};
-    use crate::senders::{Packet};
 
     #[test]
     fn raw_ip_bytes_works() {

@@ -1,13 +1,8 @@
 use crate::packets::arp;
 use crate::packets::ethernet;
-use crate::packets::icmp;
-use crate::packets::icmp::IcmpRequest;
 use crate::packets::ipv4;
-use crate::packets::tcp::Tcp;
-use crate::utilities;
 use pcap;
 use pcap::Device;
-use pcap::{Active, Capture};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
