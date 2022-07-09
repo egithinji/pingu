@@ -4,62 +4,51 @@ use nom::error::ParseError;
 use nom::sequence::tuple;
 use nom::IResult;
 use nom::Parser;
+use nom::number::complete::{be_u16, be_u8, be_u32};
 
 const TCPBYTESBEFOREOPTIONS: usize = 20;
-struct TcpSrcPort(u16);
-struct TcpDstPort(u16);
-struct TcpSeqNum(u32);
-struct TcpAckNum(u32);
-struct TcpDataOffset(u8);
-struct TcpReserved(u8);
-struct TcpUrg(bool);
-struct TcpAck(bool);
-struct TcpPsh(bool);
-struct TcpRst(bool);
-struct TcpSyn(bool);
-struct TcpFin(bool);
-struct TcpWindow(u16);
-struct TcpChecksum(u16);
-struct TcpUrgentPointer(u16);
-struct TcpOptions(Vec<u8>);
-struct TcpData(Vec<u8>);
+type TcpSrcPort = u16;
+type TcpDstPort = u16;
+type TcpSeqNum = u32;
+type TcpAckNum = u32;
+type TcpDataOffset = u8;
+type TcpReserved = u8;
+type TcpUrg = bool;
+type TcpAck = bool;
+type TcpPsh = bool;
+type TcpRst = bool;
+type TcpSyn = bool;
+type TcpFin = bool;
+type TcpWindow = u16;
+type TcpChecksum = u16;
+type TcpUrgentPointer = u16;
+type TcpOptions = Vec<u8>;
+type TcpData = Vec<u8>;
 
 fn parse_tcp_src_port<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpSrcPort, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_src_port = TcpSrcPort(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_src_port))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, tcpsrcport)) => Ok((remainder, tcpsrcport)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_tcp_dst_port<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpDstPort, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_dst_port = TcpDstPort(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_dst_port))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, tcpdstport)) => Ok((remainder, tcpdstport)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_tcp_seq_num<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpSeqNum, E> {
-    move |input: &'a [u8]| match take(4usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_seq_num = TcpSeqNum(u32::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_seq_num))
-        }
+    move |input: &'a [u8]| match be_u32(input) {
+        Ok((remainder, tcpseqnum)) => Ok((remainder, tcpseqnum)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_tcp_ack_num<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpAckNum, E> {
-    move |input: &'a [u8]| match take(4usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_ack_num = TcpAckNum(u32::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_ack_num))
-        }
+    move |input: &'a [u8]| match be_u32(input) {
+        Ok((remainder, tcpacknum)) => Ok((remainder, tcpacknum)),
         Err(e) => Err(e),
     }
 }
@@ -77,8 +66,8 @@ fn parse_tcp_dataoffset_and_reserved<'a, E>(
         Ok((
             remainder,
             (
-                TcpDataOffset(data_offset as u8),
-                TcpReserved(reserved as u8),
+                data_offset as u8,
+                reserved as u8,
             ),
         ))
     }
@@ -110,12 +99,12 @@ fn parse_tcp_flags<'a, E: ParseError<&'a [u8]>>(
             Ok((
                 remainder,
                 (
-                    TcpUrg(urg == 1),
-                    TcpAck(ack == 1),
-                    TcpPsh(psh == 1),
-                    TcpRst(rst == 1),
-                    TcpSyn(syn == 1),
-                    TcpFin(fin == 1),
+                    urg == 1,
+                    ack == 1,
+                    psh == 1,
+                    rst == 1,
+                    syn == 1,
+                    fin == 1,
                 ),
             ))
         }
@@ -124,33 +113,23 @@ fn parse_tcp_flags<'a, E: ParseError<&'a [u8]>>(
 }
 
 fn parse_tcp_window<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpWindow, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_window = TcpWindow(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_window))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, tcpwindow)) => Ok((remainder, tcpwindow)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_tcp_checksum<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpChecksum, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_checksum = TcpChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_checksum))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, tcpchecksum)) => Ok((remainder, tcpchecksum)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_tcp_urgent_pointer<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], TcpUrgentPointer, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_urgent_pointer =
-                TcpUrgentPointer(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, tcp_urgent_pointer))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, tcpurgentpointer)) => Ok((remainder, tcpurgentpointer)),
         Err(e) => Err(e),
     }
 }
@@ -168,9 +147,8 @@ fn parse_tcp_options<'a, E: ParseError<&'a [u8]>>(
     let start_of_data: usize = ((start_of_data as u16 * 32) / 8) as usize;
 
     move |input: &'a [u8]| match take(start_of_data - TCPBYTESBEFOREOPTIONS as usize)(input) {
-        Ok((remainder, bytes)) => {
-            let options = TcpOptions(bytes.to_vec());
-            Ok((remainder, options))
+        Ok((remainder, options)) => {
+            Ok((remainder, options.to_vec()))
         }
         Err(e) => Err(e),
     }
@@ -178,9 +156,8 @@ fn parse_tcp_options<'a, E: ParseError<&'a [u8]>>(
 
 fn parse_tcp_data<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], TcpData, E> {
     move |input: &'a [u8]| match take(input.len() as usize)(input) {
-        Ok((remainder, bytes)) => {
-            let tcp_data = TcpData(bytes.to_vec());
-            Ok((remainder, tcp_data))
+        Ok((remainder, tcp_data)) => {
+            Ok((remainder, tcp_data.to_vec()))
         }
         Err(e) => Err(e),
     }
@@ -221,25 +198,24 @@ pub fn parse_tcp(bytes: &[u8]) -> IResult<&[u8], Tcp> {
     Ok((
         left_over,
         Tcp {
-            src_port: src_port.0,
-            dst_port: dst_port.0,
-            seq_number: seq_number.0,
-            ack_number: ack_number.0,
-            data_offset: data_offset.0,
-            reserved: reserved.0,
-            urg: urg.0,
-            ack: ack.0,
-            psh: psh.0,
-            rst: rst.0,
-            syn: syn.0,
-            fin: fin.0,
-            window: window.0,
-            checksum: checksum.0,
-            urgent_pointer: urgent_pointer.0,
-            options: options.0,
-            data: data.0,
-            raw_tcp_header_bytes: Vec::new(),
-            entire_packet: Vec::new(),
+            src_port,
+            dst_port,
+            seq_number,
+            ack_number,
+            data_offset,
+            reserved,
+            urg,
+            ack,
+            psh,
+            rst,
+            syn,
+            fin,
+            window,
+            checksum,
+            urgent_pointer,
+            options: options,
+            data: data,
+            raw_bytes: Vec::new(),
         },
     ))
 }
@@ -276,8 +252,7 @@ mod tests {
             urgent_pointer: 0,
             options: test_bytes[20..].to_vec(),
             data: Vec::new(),
-            raw_tcp_header_bytes: Vec::new(),
-            entire_packet: Vec::new(),
+            raw_bytes: Vec::new(),
         };
 
         let (_, test_tcp_packet) = parse_tcp(test_bytes).unwrap();

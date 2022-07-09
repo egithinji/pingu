@@ -1,39 +1,40 @@
 use crate::packets::ethernet::EthernetFrame;
 use nom::bytes::complete::take;
 use nom::error::ParseError;
+use nom::number::complete::{be_u16, be_u8};
 use nom::sequence::tuple;
 use nom::IResult;
 use nom::Parser;
 
-struct EthDestMac<'a>(&'a [u8]);
-struct EthSourceMac<'a>(&'a [u8]);
-struct EthEtherType<'a>(&'a [u8]);
-struct EthPayload<'a>(&'a [u8]);
+type EthDestMac<'a> = &'a [u8];
+type EthSourceMac<'a> = &'a [u8];
+type EthEtherType<'a> = &'a [u8];
+type EthPayload<'a> = &'a [u8];
 
 fn parse_eth_dest_mac<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthDestMac<'a>, E> {
     move |input: &'a [u8]| match take(6usize)(input) {
-        Ok((remainder, bytes)) => Ok((remainder, EthDestMac(bytes))),
+        Ok((remainder, ethdestmac)) => Ok((remainder, ethdestmac)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_eth_src_mac<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthSourceMac<'a>, E> {
     move |input: &'a [u8]| match take(6usize)(input) {
-        Ok((remainder, bytes)) => Ok((remainder, EthSourceMac(bytes))),
+        Ok((remainder, ethsourcemac)) => Ok((remainder, ethsourcemac)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_eth_eth_type<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthEtherType<'a>, E> {
     move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => Ok((remainder, EthEtherType(bytes))),
+        Ok((remainder, eth_type)) => Ok((remainder, eth_type)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_eth_payload<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], EthPayload<'a>, E> {
     move |input: &'a [u8]| match take(input.len())(input) {
-        Ok((remainder, bytes)) => Ok((remainder, EthPayload(bytes))),
+        Ok((remainder, ethpayload)) => Ok((remainder, ethpayload)),
         Err(e) => Err(e),
     }
 }
@@ -48,7 +49,7 @@ pub fn parse_ethernet(bytes: &[u8]) -> IResult<&[u8], EthernetFrame> {
 
     let (left_over, (dest_mac, source_mac, eth_type, payload)) = operation.parse(bytes)?;
 
-    let e = EthernetFrame::new(eth_type.0, payload.0, dest_mac.0, source_mac.0);
+    let e = EthernetFrame::new(eth_type, payload, dest_mac, source_mac);
 
     Ok((left_over, e))
 }
@@ -57,7 +58,7 @@ pub fn parse_ethernet(bytes: &[u8]) -> IResult<&[u8], EthernetFrame> {
 mod tests {
 
     use super::*;
-    use crate::utilities::{get_wireshark_bytes, get_local_mac_ip};
+    use crate::utilities::{get_local_mac_ip, get_wireshark_bytes};
 
     #[test]
     pub fn test_ethernet_parse() {

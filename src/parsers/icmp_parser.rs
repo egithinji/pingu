@@ -1,74 +1,57 @@
 use crate::packets::icmp::IcmpRequest;
 use nom::bytes::complete::take;
 use nom::error::ParseError;
+use nom::number::complete::{be_u16, be_u8};
 use nom::sequence::tuple;
 use nom::IResult;
 use nom::Parser;
 
-struct IcmpType(u8);
-struct IcmpCode(u8);
-struct IcmpChecksum(u16);
-struct IcmpIdentifier(u16);
-struct IcmpSeqNumber(u16);
-struct IcmpData(Vec<u8>);
+type IcmpType = u8;
+type IcmpCode = u8;
+type IcmpChecksum = u16;
+type IcmpIdentifier = u16;
+type IcmpSeqNumber = u16;
+type IcmpData = Vec<u8>;
 
 fn parse_icmp_type<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpType, E> {
-    move |input: &'a [u8]| match take(1usize)(input) {
-        Ok((remainder, byte)) => {
-            let icmp_type = IcmpType(byte[0]);
-            Ok((remainder, icmp_type))
-        }
+    move |input: &'a [u8]| match be_u8(input) {
+        Ok((remainder, icmp_type)) => Ok((remainder, icmp_type)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_icmp_code<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpCode, E> {
-    move |input: &'a [u8]| match take(1usize)(input) {
-        Ok((remainder, byte)) => {
-            let icmp_code = IcmpCode(byte[0]);
-            Ok((remainder, icmp_code))
-        }
+    move |input: &'a [u8]| match be_u8(input) {
+        Ok((remainder, icmp_code)) => Ok((remainder, icmp_code)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_icmp_checksum<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpChecksum, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let icmp_checksum = IcmpChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, icmp_checksum))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, icmp_checksum)) => Ok((remainder, icmp_checksum)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_icmp_identifier<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpIdentifier, E>
 {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let icmp_identifier = IcmpIdentifier(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, icmp_identifier))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, icmp_identifier)) => Ok((remainder, icmp_identifier)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_icmp_seq_number<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpSeqNumber, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let icmp_seq_number = IcmpSeqNumber(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, icmp_seq_number))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, icmp_seq_number)) => Ok((remainder, icmp_seq_number)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_icmp_data<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], IcmpData, E> {
     move |input: &'a [u8]| match take(input.len() as usize)(input) {
-        Ok((remainder, bytes)) => {
-            let icmp_seq_number = IcmpData(bytes.to_vec());
-            Ok((remainder, icmp_seq_number))
-        }
+        Ok((remainder, icmp_data)) => Ok((remainder, icmp_data.to_vec())),
         Err(e) => Err(e),
     }
 }
@@ -86,16 +69,16 @@ pub fn parse_icmp(bytes: &[u8]) -> IResult<&[u8], IcmpRequest> {
     let (left_over, (icmp_type, code, icmp_checksum, identifier, sequence_number, data)) =
         operation.parse(bytes)?;
 
-    let data: [u8; 48] = data.0.try_into().unwrap();
+    let data: [u8; 48] = data.try_into().unwrap();
 
     Ok((
         left_over,
         IcmpRequest {
-            icmp_type: icmp_type.0,
-            code: code.0,
-            icmp_checksum: icmp_checksum.0,
-            identifier: identifier.0,
-            sequence_number: sequence_number.0,
+            icmp_type,
+            code,
+            icmp_checksum,
+            identifier,
+            sequence_number,
             data,
             raw_icmp_bytes: Vec::new(),
         },
@@ -107,7 +90,7 @@ mod tests {
 
     use super::*;
 
-#[test]
+    #[test]
     pub fn test_icmp_parse() {
         //test_bytes are taken contents of icmp reply received from 8.8.8.8 after pinging from Linux.
         let test_bytes = &[
@@ -144,9 +127,4 @@ mod tests {
         assert_eq!(test_icmp_packet.sequence_number, expected.sequence_number);
         assert_eq!(test_icmp_packet.data, expected.data);
     }
-
-
-
-
-
 }

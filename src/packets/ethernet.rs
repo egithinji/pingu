@@ -129,6 +129,7 @@ mod tests {
         let ipv4_packet = Ipv4::new(
             [192, 168, 100, 16],
             [8, 8, 8, 8],
+            1,
             icmp_packet.raw_bytes().clone(),
         );
         let eth_packet = EthernetFrame::new(

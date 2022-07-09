@@ -3,6 +3,7 @@ use crate::packets::ethernet;
 use crate::packets::icmp;
 use crate::packets::icmp::IcmpRequest;
 use crate::packets::ipv4;
+use crate::packets::tcp::Tcp;
 use crate::senders::{raw_send, Packet};
 use crate::utilities;
 use pcap;
@@ -25,6 +26,7 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
     let ipv4_packet = ipv4::Ipv4::new(
         local_ip.octets(),
         dest_ip.octets(),
+        1,
         icmp_packet.raw_bytes().clone(),
     );
 
@@ -76,6 +78,56 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
         }
     }
 }
+
+pub async fn send_tcp_syn(src_ip: net::Ipv4Addr, dest_ip: net::Ipv4Addr, tcp_packet: Tcp) -> Result<ipv4::Ipv4, &'static str> {
+    
+    let (local_mac, _) = get_local_mac_ip();
+
+    let ipv4_packet = ipv4::Ipv4::new(
+        src_ip.octets(),
+        dest_ip.octets(),
+        6,
+        tcp_packet.raw_bytes.clone(),
+    );
+
+    let dest_mac: Vec<u8> = match default_net::get_default_gateway() {
+            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
+            Err(e) => {
+                panic!("Error getting default gateway:{}", e);
+            }
+        };
+
+    let eth_packet = ethernet::EthernetFrame::new(
+        &[0x08, 0x00],
+        ipv4_packet.raw_bytes(),
+        &dest_mac,
+        &local_mac[..],
+    );
+
+    match request_and_response(eth_packet).await {
+        Ok((response, roundtrip)) => match ethernet::EthernetFrame::try_from(&response[..]) {
+            Ok(eth_packet) => {
+                println!(
+                    "Received packet from {}. Round-trip time: {}",
+                    print_reply(&eth_packet.raw_bytes[..]),
+                    roundtrip
+                );
+                let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
+                Ok(ipv4_packet)
+            }
+            Err(e) => {
+                println!("{e}");
+                Err(e)
+            }
+        },
+        Err(e) => {
+            println!("{e}");
+            Err(e)
+        }
+    }
+
+}
+
 
 pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
     let handle = &Device::list().unwrap()[0];

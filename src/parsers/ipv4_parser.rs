@@ -4,59 +4,51 @@ use nom::error::ParseError;
 use nom::sequence::tuple;
 use nom::IResult;
 use nom::Parser;
+use nom::number::complete::{be_u16, be_u8};
 
-struct Ipv4Version(u16);
-struct Ipv4Ihl(u16);
-struct Ipv4Tos(u8);
-struct Ipv4TotalLength(u16);
-struct Ipv4Identification(u16);
-struct Ipv4Flags(u8);
-struct Ipv4FragmentOffset(u16);
-struct Ipv4Ttl(u8);
-struct Ipv4Protocol(u8);
-struct Ipv4HeaderChecksum(u16);
-struct Ipv4SourceAddress([u8; 4]);
-struct Ipv4DestAddress([u8; 4]);
-struct Ipv4Payload(Vec<u8>);
+type Ipv4Version = u16;
+type Ipv4Ihl = u16;
+type Ipv4Tos = u8;
+type Ipv4TotalLength = u16;
+type Ipv4Identification = u16;
+type Ipv4Flags = u8;
+type Ipv4FragmentOffset = u16;
+type Ipv4Ttl = u8;
+type Ipv4Protocol = u8;
+type Ipv4HeaderChecksum = u16;
+type Ipv4SourceAddress = [u8; 4];
+type Ipv4DestAddress = [u8; 4];
+type Ipv4Payload = Vec<u8>;
 
 fn parse_ipv4_version_and_ihl<'a, E>() -> impl Parser<&'a [u8], (Ipv4Version, Ipv4Ihl), E> {
     move |bytes| {
         let (remainder, byte) = take::<usize, &'a [u8], ()>(1usize)(bytes).unwrap();
         let (tail, version) = nom::bits::complete::take::<&'a [u8], u8, usize, ()>(4usize)((byte,0)).unwrap();
         let (_, ihl) = nom::bits::complete::take::<&'a [u8], u16, usize, ()>(4usize)(tail).unwrap();
-        Ok((remainder, (Ipv4Version(version as u16), Ipv4Ihl(ihl))))
+        Ok((remainder, (version as u16, ihl)))
     }
 }
 
 fn parse_ipv4_type_of_service<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Tos, E> {
-    move |input: &'a [u8]| match take(1usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_tos = Ipv4Tos(u8::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_tos))
-        }
+    move |input: &'a [u8]| match be_u8(input) {
+        Ok((remainder, ipv4_tos)) => Ok((remainder, ipv4_tos)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_ipv4_total_length<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], Ipv4TotalLength, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_total_length = Ipv4TotalLength(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_total_length))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, ipv4_totallength)) => Ok((remainder, ipv4_totallength)),
         Err(e) => Err(e),
     }
+
 }
 
 fn parse_ipv4_identification<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], Ipv4Identification, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_identification =
-                Ipv4Identification(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_identification))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, ipv4_identification)) => Ok((remainder, ipv4_identification)),
         Err(e) => Err(e),
     }
 }
@@ -72,39 +64,31 @@ fn parse_ipv4_flags_and_fragoffset<'a, E>(
 
         Ok((
             remainder,
-            (Ipv4Flags(flags as u8), Ipv4FragmentOffset(fragment_offset)),
+            (flags as u8, fragment_offset),
         ))
     }
 }
 
 fn parse_ipv4_ttl<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Ttl, E> {
-    move |input: &'a [u8]| match take(1usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_ttl = Ipv4Ttl(u8::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_ttl))
-        }
+    move |input: &'a [u8]| match be_u8(input) {
+        Ok((remainder, ipv4_ttl)) => Ok((remainder, ipv4_ttl)),
         Err(e) => Err(e),
     }
 }
 
 fn parse_ipv4_protocol<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Protocol, E> {
-    move |input: &'a [u8]| match take(1usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_protocol = Ipv4Protocol(u8::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_protocol))
-        }
+
+    move |input: &'a [u8]| match be_u8(input) {
+        Ok((remainder, ipv4_protocol)) => Ok((remainder, ipv4_protocol)),
         Err(e) => Err(e),
     }
+
 }
 
 fn parse_ipv4_header_checksum<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], Ipv4HeaderChecksum, E> {
-    move |input: &'a [u8]| match take(2usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_header_checksum =
-                Ipv4HeaderChecksum(u16::from_be_bytes(bytes.try_into().unwrap()));
-            Ok((remainder, ipv4_header_checksum))
-        }
+    move |input: &'a [u8]| match be_u16(input) {
+        Ok((remainder, ipv4_hchecksum)) => Ok((remainder, ipv4_hchecksum)),
         Err(e) => Err(e),
     }
 }
@@ -112,9 +96,8 @@ fn parse_ipv4_header_checksum<'a, E: ParseError<&'a [u8]>>(
 fn parse_ipv4_source_address<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], Ipv4SourceAddress, E> {
     move |input: &'a [u8]| match take(4usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_source_address = Ipv4SourceAddress(bytes.try_into().unwrap());
-            Ok((remainder, ipv4_source_address))
+        Ok((remainder, ipv4_source_address)) => {
+            Ok((remainder, ipv4_source_address.try_into().unwrap()))
         }
         Err(e) => Err(e),
     }
@@ -123,9 +106,8 @@ fn parse_ipv4_source_address<'a, E: ParseError<&'a [u8]>>(
 fn parse_ipv4_dest_address<'a, E: ParseError<&'a [u8]>>(
 ) -> impl Parser<&'a [u8], Ipv4DestAddress, E> {
     move |input: &'a [u8]| match take(4usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_dest_address = Ipv4DestAddress(bytes.try_into().unwrap());
-            Ok((remainder, ipv4_dest_address))
+        Ok((remainder, ipv4_dest_address)) => {
+            Ok((remainder, ipv4_dest_address.try_into().unwrap()))
         }
         Err(e) => Err(e),
     }
@@ -133,9 +115,8 @@ fn parse_ipv4_dest_address<'a, E: ParseError<&'a [u8]>>(
 
 fn parse_ipv4_payload<'a, E: ParseError<&'a [u8]>>() -> impl Parser<&'a [u8], Ipv4Payload, E> {
     move |input: &'a [u8]| match take(input.len() as usize)(input) {
-        Ok((remainder, bytes)) => {
-            let ipv4_payload = Ipv4Payload(bytes.to_vec());
-            Ok((remainder, ipv4_payload))
+        Ok((remainder, ipv4_payload)) => {
+            Ok((remainder, ipv4_payload.to_vec()))
         }
         Err(e) => Err(e),
     }
@@ -176,19 +157,19 @@ pub fn parse_ipv4(bytes: &[u8]) -> IResult<&[u8], Ipv4> {
     Ok((
         left_over,
         Ipv4 {
-            version: version.0,
-            ihl: ihl.0,
-            type_of_service: type_of_service.0,
-            total_length: total_length.0,
-            identification: identification.0,
-            flags: flags.0,
-            fragment_offset: fragment_offset.0,
-            ttl: ttl.0,
-            protocol: protocol.0,
-            header_checksum: header_checksum.0,
-            source_address: source_address.0,
-            dest_address: dest_address.0,
-            payload: data.0,
+            version: version,
+            ihl: ihl,
+            type_of_service: type_of_service,
+            total_length: total_length,
+            identification: identification,
+            flags: flags,
+            fragment_offset: fragment_offset,
+            ttl: ttl,
+            protocol: protocol,
+            header_checksum: header_checksum,
+            source_address: source_address,
+            dest_address: dest_address,
+            payload: data,
             raw_ip_header_bytes: Vec::new(),
             entire_packet: Vec::new(),
         },
