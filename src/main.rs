@@ -1,13 +1,13 @@
 use pingu::packets::{arp,ethernet,icmp::IcmpRequest,ipv4,tcp::TcpConnection,tcp::Tcp};
-use pingu::senders::{Packet};
+use pingu::utilities::Packet;
 use pingu::utilities;
 use std::env;
 use std::net;
 
 #[tokio::main]
 async fn main() {
-/*
-    let args: Vec<String> = env::args().collect();
+
+    /*let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Please enter the destination IP address.");
     }
@@ -19,8 +19,12 @@ async fn main() {
         }
     };
 
-    utilities::single_pingu(dest_ip).await;
-*/
+    let icmp_request = IcmpRequest::new();
+    icmp_request.send(dest_ip).await;*/
+
+
+    //utilities::single_pingu(dest_ip).await;
+
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {

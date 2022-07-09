@@ -1,5 +1,5 @@
 use crate::parsers::ipv4_parser::parse_ipv4;
-use crate::senders::{Packet};
+use crate::utilities::Packet;
 
 const FLAGSANDOFFSET: u16 = 16384_u16;
 const HEADER_LENGTH: u16 = 20;

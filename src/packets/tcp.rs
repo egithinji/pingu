@@ -1,5 +1,6 @@
 use crate::parsers::tcp_parser::parse_tcp;
-use crate::utilities::send_tcp_syn;
+use crate::utilities::send_packet;
+use crate::packets::ipv4;
 use rand::{thread_rng, Rng};
 use std::net;
 
@@ -210,10 +211,14 @@ impl TcpConnection {
             Vec::new(),
         );
 
-        let src_ip = net::Ipv4Addr::new(self.src_ip[0],self.src_ip[1],self.src_ip[2],self.src_ip[3]);
-        let dst_ip = net::Ipv4Addr::new(self.dst_ip[0],self.dst_ip[1],self.dst_ip[2],self.dst_ip[3]);
+        let ipv4_packet = ipv4::Ipv4::new(
+            self.src_ip,
+            self.dst_ip,
+            6,
+            tcp_packet.raw_bytes.clone(),
+        );
 
-        send_tcp_syn(src_ip,dst_ip,tcp_packet).await;
+        send_packet(ipv4_packet).await;
 
     }
 }

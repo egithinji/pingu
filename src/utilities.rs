@@ -4,7 +4,6 @@ use crate::packets::icmp;
 use crate::packets::icmp::IcmpRequest;
 use crate::packets::ipv4;
 use crate::packets::tcp::Tcp;
-use crate::senders::{raw_send, Packet};
 use crate::utilities;
 use pcap;
 use pcap::Device;
@@ -19,20 +18,20 @@ use std::time::Instant;
 const SYSFS_PATH: &str = "/sys/class/net/";
 const SYSFS_FILENAME: &str = "/address";
 
-pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static str> {
-    let (local_mac, local_ip) = get_local_mac_ip();
+pub trait Packet {
+    fn raw_bytes(&self) -> &Vec<u8>;
+    fn dest_address(&self) -> Option<Vec<u8>>;
+    fn source_address(&self) -> Option<Vec<u8>>;
+}
 
-    let icmp_packet = IcmpRequest::new();
-    let ipv4_packet = ipv4::Ipv4::new(
-        local_ip.octets(),
-        dest_ip.octets(),
-        1,
-        icmp_packet.raw_bytes().clone(),
-    );
+pub async fn send_packet(ip_packet: ipv4::Ipv4) -> Result<ipv4::Ipv4, &'static str> {
+    let (local_mac, _) = get_local_mac_ip();
+
+    let dest_ip: net::Ipv4Addr = ip_packet.dest_address.try_into().unwrap();
 
     let dest_mac: Vec<u8> = if dest_ip.is_private() {
         println!("dest ip is private, get mac of target...");
-        match arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &local_ip.octets()).await {
+        match arp::get_mac_of_target(&dest_ip.octets(), &local_mac, &ip_packet.source_address).await {
             Ok(dmac) => dmac,
             Err(e) => {
                 println!("{e}");
@@ -51,7 +50,7 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
 
     let eth_packet = ethernet::EthernetFrame::new(
         &[0x08, 0x00],
-        ipv4_packet.raw_bytes(),
+        ip_packet.raw_bytes(),
         &dest_mac,
         &local_mac[..],
     );
@@ -78,56 +77,6 @@ pub async fn single_pingu(dest_ip: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static
         }
     }
 }
-
-pub async fn send_tcp_syn(src_ip: net::Ipv4Addr, dest_ip: net::Ipv4Addr, tcp_packet: Tcp) -> Result<ipv4::Ipv4, &'static str> {
-    
-    let (local_mac, _) = get_local_mac_ip();
-
-    let ipv4_packet = ipv4::Ipv4::new(
-        src_ip.octets(),
-        dest_ip.octets(),
-        6,
-        tcp_packet.raw_bytes.clone(),
-    );
-
-    let dest_mac: Vec<u8> = match default_net::get_default_gateway() {
-            Ok(gateway) => gateway.mac_addr.octets().to_vec(),
-            Err(e) => {
-                panic!("Error getting default gateway:{}", e);
-            }
-        };
-
-    let eth_packet = ethernet::EthernetFrame::new(
-        &[0x08, 0x00],
-        ipv4_packet.raw_bytes(),
-        &dest_mac,
-        &local_mac[..],
-    );
-
-    match request_and_response(eth_packet).await {
-        Ok((response, roundtrip)) => match ethernet::EthernetFrame::try_from(&response[..]) {
-            Ok(eth_packet) => {
-                println!(
-                    "Received packet from {}. Round-trip time: {}",
-                    print_reply(&eth_packet.raw_bytes[..]),
-                    roundtrip
-                );
-                let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
-                Ok(ipv4_packet)
-            }
-            Err(e) => {
-                println!("{e}");
-                Err(e)
-            }
-        },
-        Err(e) => {
-            println!("{e}");
-            Err(e)
-        }
-    }
-
-}
-
 
 pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
     let handle = &Device::list().unwrap()[0];
@@ -160,22 +109,22 @@ fn print_reply(bytes: &[u8]) -> String {
 }
 
 pub async fn request_and_response<'a>(
-    ethernet_packet: ethernet::EthernetFrame<'a>,
+    ethernet_frame: ethernet::EthernetFrame<'a>,
 ) -> Result<(Vec<u8>, u128), &'static str> {
-    let filter = match *ethernet_packet.ether_type {
+    let filter = match *ethernet_frame.ether_type {
         [0x08, 0x06] => {
             format!(
                 "(arp[6:2] = 2) and ether dst {:x}:{:x}:{:x}:{:x}:{:x}:{:x}",
-                ethernet_packet.source_mac[0],
-                ethernet_packet.source_mac[1],
-                ethernet_packet.source_mac[2],
-                ethernet_packet.source_mac[3],
-                ethernet_packet.source_mac[4],
-                ethernet_packet.source_mac[5]
+                ethernet_frame.source_mac[0],
+                ethernet_frame.source_mac[1],
+                ethernet_frame.source_mac[2],
+                ethernet_frame.source_mac[3],
+                ethernet_frame.source_mac[4],
+                ethernet_frame.source_mac[5]
             )
         }
         [0x08, 0x00] => {
-            let ipv4_packet = ipv4::Ipv4::try_from(ethernet_packet.payload).unwrap();
+            let ipv4_packet = ipv4::Ipv4::try_from(ethernet_frame.payload).unwrap();
             format!(
                 "icmp and src host {}.{}.{}.{} and dst host {}.{}.{}.{}",
                 ipv4_packet.dest_address().unwrap()[0],
@@ -230,11 +179,12 @@ pub async fn request_and_response<'a>(
     });
 
     //send the packet
-    let now: Instant = match raw_send(&ethernet_packet.raw_bytes[..], cap2) {
-        Ok(instant) => instant,
-        Err(e) => {
-            panic!("Error sending packet to socket: {e}");
-        }
+    let now: Instant = match cap2.lock().unwrap().sendpacket(&ethernet_frame.raw_bytes[..]) {
+        Ok(()) => {
+            println!("Packet sent ********************************************");
+            Instant::now()
+        },
+        Err(e) => {panic!("Error occurred sending packet: {}",e);}
     };
 
     //await the reply from the channel

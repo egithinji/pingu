@@ -1,7 +1,10 @@
+use crate::packets::ipv4;
 use crate::parsers::icmp_parser::parse_icmp;
-use crate::senders::Packet;
+use crate::utilities::Packet;
+use crate::utilities::{get_local_mac_ip, send_packet};
 use nom::error::ParseError;
 use nom::*;
+use std::net;
 
 const DATA: [u8; 48] = [
     0x1b, 0x2f, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
@@ -62,6 +65,17 @@ impl IcmpRequest {
 
         icmp
     }
+
+    pub async fn send(&self, dest_ip_addr: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static str> {
+        let (_, local_ip_addr) = get_local_mac_ip();
+        let ipv4_packet = ipv4::Ipv4::new(
+            local_ip_addr.octets(),
+            dest_ip_addr.octets(),
+            1,
+            self.raw_bytes().clone(),
+        );
+        send_packet(ipv4_packet).await
+    }
 }
 
 fn calculate_checksum(bytes: &mut Vec<u8>) -> u16 {
@@ -112,7 +126,6 @@ impl<'a> TryFrom<&'a [u8]> for IcmpRequest {
     type Error = nom::Err<nom::error::Error<&'a [u8]>>;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        
         let (_, icmp_packet) = parse_icmp(bytes)?;
         Ok(icmp_packet)
     }
@@ -151,5 +164,4 @@ mod tests {
     fn calculate_checksum_works() {
         unimplemented!();
     }
-    
 }

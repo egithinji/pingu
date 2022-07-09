@@ -1,5 +1,5 @@
 use crate::parsers::ethernet_parser::parse_ethernet;
-use crate::senders::{Packet};
+use crate::utilities::Packet;
 use crc32fast;
 
 pub struct EthernetFrame<'a> {
@@ -102,7 +102,7 @@ mod tests {
     use super::EthernetFrame;
     use crate::packets::icmp;
     use crate::packets::ipv4::Ipv4;
-    use crate::senders::{Packet};
+    use crate::utilities::Packet;
     use crate::utilities::{get_local_mac_ip, get_wireshark_bytes};
     const DEST_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     const SOURCE_MAC: [u8; 6] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];

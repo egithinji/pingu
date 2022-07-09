@@ -1,4 +1,4 @@
-use crate::senders::Packet;
+use crate::utilities::Packet;
 use crate::packets::ethernet;
 use crate::utilities;
 use nom::error::ParseError;
