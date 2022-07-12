@@ -3,8 +3,7 @@ use nom::bytes::complete::take;
 use nom::error::ParseError;
 use nom::number::complete::{be_u16, be_u8};
 use nom::sequence::tuple;
-use nom::IResult;
-use nom::Parser;
+use nom::{IResult,Parser};
 
 type IcmpType = u8;
 type IcmpCode = u8;

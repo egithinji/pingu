@@ -19,7 +19,7 @@ pub trait Packet {
     fn source_address(&self) -> Option<Vec<u8>>;
 }
 
-pub async fn send_packet(ip_packet: ipv4::Ipv4) -> Result<ipv4::Ipv4, &'static str> {
+pub async fn send_packet(ip_packet: ipv4::Ipv4) -> Result<(ipv4::Ipv4, u128), &'static str> {
     let (local_mac, _) = get_local_mac_ip();
 
     let dest_ip: net::Ipv4Addr = ip_packet.dest_address.try_into().unwrap();
@@ -52,14 +52,9 @@ pub async fn send_packet(ip_packet: ipv4::Ipv4) -> Result<ipv4::Ipv4, &'static s
 
     match request_and_response(eth_packet).await {
         Ok((response, roundtrip)) => match ethernet::EthernetFrame::try_from(&response[..]) {
-            Ok(eth_packet) => {
-                println!(
-                    "Received packet from {}. Round-trip time: {}",
-                    print_reply(&eth_packet.raw_bytes[..]),
-                    roundtrip
-                );
-                let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
-                Ok(ipv4_packet)
+            Ok(eth_frame) => {
+                let ipv4_packet = ipv4::Ipv4::try_from(eth_frame.payload).unwrap();
+                Ok((ipv4_packet,roundtrip))
             }
             Err(e) => {
                 println!("{e}");
@@ -71,36 +66,6 @@ pub async fn send_packet(ip_packet: ipv4::Ipv4) -> Result<ipv4::Ipv4, &'static s
             Err(e)
         }
     }
-}
-
-pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
-    let handle = &Device::list().unwrap()[0];
-    let ip_address: net::Ipv4Addr = if let net::IpAddr::V4(ip_addr) = handle.addresses[0].addr {
-        ip_addr
-    } else {
-        panic!();
-    };
-
-    let file_path = format!("{}{}{}", SYSFS_PATH, handle.name, SYSFS_FILENAME);
-
-    let mut file = File::open(file_path).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let mac: Vec<u8> = contents
-        .strip_suffix('\n')
-        .unwrap()
-        .split(':')
-        .map(|x| u8::from_str_radix(x, 16).unwrap())
-        .collect();
-
-    (mac, ip_address)
-}
-
-fn print_reply(bytes: &[u8]) -> String {
-    let eth_packet = ethernet::EthernetFrame::try_from(bytes).unwrap();
-    let ipv4_packet = ipv4::Ipv4::try_from(eth_packet.payload).unwrap();
-
-    format!("{:?}", ipv4_packet.source_address)
 }
 
 pub async fn request_and_response<'a>(
@@ -161,9 +126,9 @@ pub async fn request_and_response<'a>(
             let cap = Arc::clone(&cap);
             let mut cap = cap.lock().unwrap();
             match cap.next() {
-                Ok(packet) => {
-                    println!("Received a packet!");
-                    tx.send(Ok(packet.data.to_vec()));
+                Ok(eth_frame) => {
+                    println!("Captured a frame!");
+                    tx.send(Ok(eth_frame.data.to_vec()));
                     break;
                 }
                 Err(_) => {
@@ -193,6 +158,29 @@ pub async fn request_and_response<'a>(
         }
         Err(_) => Err("Something bad happened"),
     }
+}
+
+pub fn get_local_mac_ip() -> (Vec<u8>, net::Ipv4Addr) {
+    let handle = &Device::list().unwrap()[0];
+    let ip_address: net::Ipv4Addr = if let net::IpAddr::V4(ip_addr) = handle.addresses[0].addr {
+        ip_addr
+    } else {
+        panic!();
+    };
+
+    let file_path = format!("{}{}{}", SYSFS_PATH, handle.name, SYSFS_FILENAME);
+
+    let mut file = File::open(file_path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let mac: Vec<u8> = contents
+        .strip_suffix('\n')
+        .unwrap()
+        .split(':')
+        .map(|x| u8::from_str_radix(x, 16).unwrap())
+        .collect();
+
+    (mac, ip_address)
 }
 
 //For use in tests. Retreives bytes from a local file captured from wireshark

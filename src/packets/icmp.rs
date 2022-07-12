@@ -66,7 +66,7 @@ impl IcmpRequest {
         icmp
     }
 
-    pub async fn send(&self, dest_ip_addr: net::Ipv4Addr) -> Result<ipv4::Ipv4, &'static str> {
+    pub async fn send(&self, dest_ip_addr: net::Ipv4Addr) {
         let (_, local_ip_addr) = get_local_mac_ip();
         let ipv4_packet = ipv4::Ipv4::new(
             local_ip_addr.octets(),
@@ -74,7 +74,14 @@ impl IcmpRequest {
             1,
             self.raw_bytes().clone(),
         );
-        send_packet(ipv4_packet).await
+        match send_packet(ipv4_packet).await {
+            Ok((ip_packet, roundtrip)) => {
+                println!("Received response from {:?}. Round trip time: {:?}",ip_packet.source_address,roundtrip);
+            },
+            Err(e) => {
+                println!("Error: {e}");
+            }
+        };
     }
 }
 

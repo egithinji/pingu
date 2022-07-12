@@ -218,7 +218,14 @@ impl TcpConnection {
             tcp_packet.raw_bytes.clone(),
         );
 
-        send_packet(ipv4_packet).await;
+        match send_packet(ipv4_packet).await {
+            Ok((ip_packet, roundtrip)) => {
+                println!("Received response from {:?}. Round trip time: {:?}", ip_packet.source_address,roundtrip);
+            },
+            Err(e) => {
+                println!("Error: {e}");
+            }
+        };
 
     }
 }
