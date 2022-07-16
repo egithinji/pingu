@@ -229,7 +229,8 @@ impl TcpConnection {
             port: self.src_port,
         };
 
-        let mut t = self.send_tcp(initial_tcp_packet,s.clone()).await.unwrap();
+        //let mut t = self.send_tcp(initial_tcp_packet,s.clone()).await.unwrap();
+        let mut t = send_tcp(self.dst_ip, s.clone(), initial_tcp_packet.raw_bytes).await.unwrap();
         println!(
             "Received response with syn flag {} and ack flag {}",
             t.syn, t.ack
@@ -260,23 +261,8 @@ impl TcpConnection {
             Vec::new(),
         );
 
-        self.send_tcp(final_tcp_packet,s.clone()).await;
+        send_tcp(self.dst_ip, s.clone(), final_tcp_packet.raw_bytes).await;
     }
-
-    async fn send_tcp(&self, tcp_packet: Tcp, s: Socket) -> Result<Tcp, ()> {
-
-        let ipv4_packet =
-            ipv4::Ipv4::new(self.src_ip, self.dst_ip, 6, tcp_packet.raw_bytes.clone());
-        
-        match tun_send(ipv4_packet, s).await {
-            Ok(tcp_packet) => Ok(tcp_packet),
-            Err(()) => {
-                println!("Error");
-                Err(())
-            }
-        }
-    }
-
     
 }
 
@@ -290,7 +276,10 @@ fn cmd(cmd: &str, args: &[&str]) {
     assert!(ecode.success(), "Failed to execute {}", cmd);
 }
 
-async fn tun_send(ip_packet: ipv4::Ipv4, socket: Socket) -> Result<Tcp, ()> {
+async fn send_tcp(dst_ip:[u8;4], socket: Socket, tcp_bytes: Vec<u8>) -> Result<Tcp, ()> {
+
+    let ip_packet = ipv4::Ipv4::new(socket.ip, dst_ip, 6, tcp_bytes);
+
     let iface = Iface::new("tun%d", Mode::Tun).unwrap();
     println!("Iface created: {:?}", iface.name());
     cmd("ip", &["addr", "add", "dev", iface.name(), "10.0.1.1/24"]);
