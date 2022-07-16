@@ -1,8 +1,14 @@
-use crate::parsers::tcp_parser::parse_tcp;
-use crate::utilities::send_packet;
 use crate::packets::ipv4;
+use crate::packets::ipv4::Ipv4;
+use crate::parsers::tcp_parser::parse_tcp;
+use crate::utilities::Packet;
 use rand::{thread_rng, Rng};
 use std::net;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+use tun_tap::{Iface, Mode};
 
 pub struct Tcp {
     pub src_port: u16,
@@ -156,6 +162,12 @@ impl<'a> TryFrom<&'a [u8]> for Tcp {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Socket {
+    ip: [u8; 4],
+    port: u16,
+}
+
 pub struct TcpConnection {
     pub src_ip: [u8; 4],
     pub src_port: u16,
@@ -181,20 +193,21 @@ impl TcpConnection {
             src_port: random_src_port,
             dst_ip,
             dst_port,
-            send_una: random_seq,
-            send_next: 0,
+            send_una: 0,
+            send_next: random_seq,
             seg_ack: 0,
             rcv_next: 0,
         }
     }
 
-    pub async fn send_syn(&self) {
-        let tcp_packet = Tcp::new(
+    pub async fn do_handshake(&mut self) {
+
+        let initial_tcp_packet = Tcp::new(
             self.src_ip,
             self.dst_ip,
             self.src_port,
             self.dst_port,
-            self.send_una,
+            self.send_next,
             0,
             //20 + DEFAULT_OPTIONS.len() as u8,
             6,
@@ -211,23 +224,124 @@ impl TcpConnection {
             Vec::new(),
         );
 
-        let ipv4_packet = ipv4::Ipv4::new(
-            self.src_ip,
-            self.dst_ip,
-            6,
-            tcp_packet.raw_bytes.clone(),
-        );
-
-        match send_packet(ipv4_packet).await {
-            Ok((ip_packet, roundtrip)) => {
-                println!("Received response from {:?}. Round trip time: {:?}", ip_packet.source_address,roundtrip);
-            },
-            Err(e) => {
-                println!("Error: {e}");
-            }
+        let s = Socket {
+            ip: self.src_ip,
+            port: self.src_port,
         };
 
+        let mut t = self.send_tcp(initial_tcp_packet,s.clone()).await.unwrap();
+        println!(
+            "Received response with syn flag {} and ack flag {}",
+            t.syn, t.ack
+        );
+        self.rcv_next = t.seq_number + 1;
+        self.send_next = t.ack_number;
+        self.send_una = self.send_next;
+
+        let final_tcp_packet = Tcp::new(
+            self.src_ip,
+            self.dst_ip,
+            self.src_port,
+            self.dst_port,
+            self.send_next,
+            self.rcv_next,
+            //20 + DEFAULT_OPTIONS.len() as u8,
+            6,
+            0,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            DEFAULT_WINDOW_SIZE,
+            0,
+            DEFAULT_OPTIONS.to_vec(),
+            Vec::new(),
+        );
+
+        self.send_tcp(final_tcp_packet,s.clone()).await;
     }
+
+    async fn send_tcp(&self, tcp_packet: Tcp, s: Socket) -> Result<Tcp, ()> {
+
+        let ipv4_packet =
+            ipv4::Ipv4::new(self.src_ip, self.dst_ip, 6, tcp_packet.raw_bytes.clone());
+        
+        match tun_send(ipv4_packet, s).await {
+            Ok(tcp_packet) => Ok(tcp_packet),
+            Err(()) => {
+                println!("Error");
+                Err(())
+            }
+        }
+    }
+
+    
+}
+
+fn cmd(cmd: &str, args: &[&str]) {
+    let ecode = Command::new(cmd)
+        .args(args)
+        .spawn()
+        .unwrap()
+        .wait()
+        .unwrap();
+    assert!(ecode.success(), "Failed to execute {}", cmd);
+}
+
+async fn tun_send(ip_packet: ipv4::Ipv4, socket: Socket) -> Result<Tcp, ()> {
+    let iface = Iface::new("tun%d", Mode::Tun).unwrap();
+    println!("Iface created: {:?}", iface.name());
+    cmd("ip", &["addr", "add", "dev", iface.name(), "10.0.1.1/24"]);
+    cmd("ip", &["link", "set", "up", "dev", iface.name()]);
+    let mut bytes: Vec<u8> = Vec::new();
+    //For why following 4 bytes needed see:https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/Documentation/networking/tuntap.rst?id=HEAD#n120
+    bytes.extend_from_slice(&[0, 0, 8, 0]);
+    bytes.extend_from_slice(ip_packet.raw_bytes());
+
+    let iface = Arc::new(iface);
+    let iface_writer = Arc::clone(&iface);
+    let iface_reader = Arc::clone(&iface);
+    let writer = thread::spawn(move || {
+        println!("Sending a packet");
+        let amount = iface_writer.send(bytes.as_ref()).unwrap();
+        assert!(amount == bytes.len());
+    });
+    let reader = thread::spawn(move || {
+        let mut buffer = vec![0; 1504];
+        loop {
+            let size = iface_reader.recv(&mut buffer).unwrap();
+            assert!(size >= 4);
+            let received_bytes = &buffer[4..size];
+            println!("Received {size} bytes from buffer");
+            let i = ipv4::Ipv4::try_from(received_bytes).unwrap();
+            println!(
+                "Parsed ip packet and got source ip: {:?} and dest ip: {:?}",
+                i.source_address, i.dest_address
+            );
+            if i.protocol != 6 {
+                continue;
+            };
+            match Tcp::try_from(i.payload.as_ref()) {
+                Ok(t) => {
+                    if i.dest_address == socket.ip && t.dst_port == socket.port {
+                        println!(
+                            "Received a tcp response from {:?} to {:?}",
+                            i.source_address, i.dest_address
+                        );
+                        return t;
+                    }
+                }
+                Err(e) => {
+                    println!("Error parsing tcp: {e}");
+                }
+            }
+        }
+    });
+
+    writer.join().unwrap();
+    Ok(reader.join().unwrap())
 }
 
 #[cfg(test)]

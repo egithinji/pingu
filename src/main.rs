@@ -7,7 +7,7 @@ use std::net;
 #[tokio::main]
 async fn main() {
 
-    /*
+   /* 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("Please enter the destination IP address.");
@@ -21,8 +21,8 @@ async fn main() {
     };
 
     let icmp_request = IcmpRequest::new();
-    icmp_request.send(dest_ip).await;
-*/
+    let ip_packet = ipv4::Ipv4::new([10,0,1,2],[8,8,8,8],1,icmp_request.raw_bytes().clone());
+    utilities::tun_send(ip_packet).await;*/
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
@@ -50,8 +50,7 @@ async fn main() {
         }
     };
 
-    let tcp_connection = TcpConnection::new(src_ip.octets(), dst_ip.octets(), dst_port);
-    tcp_connection.send_syn().await;
-
+    let mut tcp_connection = TcpConnection::new(src_ip.octets(), dst_ip.octets(), dst_port);
+    tcp_connection.do_handshake().await;
 
 }

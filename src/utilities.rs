@@ -9,6 +9,10 @@ use std::io::BufReader;
 use std::net;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use std::process::Command;
+use tun_tap::{Iface,Mode};
+use std::thread;
+use std::time::Duration;
 
 const SYSFS_PATH: &str = "/sys/class/net/";
 const SYSFS_FILENAME: &str = "/address";
@@ -196,6 +200,8 @@ pub fn get_wireshark_bytes(file_name: &str) -> Vec<u8> {
         .map(|v| u8::from_str_radix(v, 16).unwrap())
         .collect()
 }
+
+
 
 #[cfg(test)]
 mod tests {
