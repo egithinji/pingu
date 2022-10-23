@@ -4,48 +4,20 @@ Pingu is a playground for implementing network protocols and utilities in Rust. 
 ![Screenshot](docs/images/pingu_screenshot.png)
 
 ## Why
-The idea is to learn-by-doing with regards to network protocols and writing Rust code.
+The idea is to learn-by-doing with regards to network protocols and writing Rust code. An implementation is complete when tested against a real host on a network.
 
-## How
-When there is a need to send/receive raw ethernet packets via the network device (e.g. in the implementation of [ ping](https://en.wikipedia.org/wiki/Ping_(networking_utility))), [pcap](https://github.com/rust-pcap/pcap) is used. Otherwise the networking primitives in [the standard library](https://doc.rust-lang.org/std/net/index.html) are used. 
-
-## Installation (Debian based Linux)
-* [Install nightly rust](https://doc.rust-lang.org/book/appendix-07-nightly-rust.html#rustup-and-the-role-of-rust-nightly)
-* Install libpcap-dev
-```
-sudo apt update
-sudo apt install libpcap-dev
-```
-* Clone this repo
-* Build:
-```
-cargo build --release
-```
-* Set the following capabilities:
-```
-sudo setcap cap_net_raw,cap_net_admin=eip path/to/pingu/target/release
-```
-* Add binary to PATH by adding the following to your ~/.bashrc:
-```
-export PATH=path/to/pingu/target/release
-
-```
-* Restart your terminal
-
-## Running
-
-* Ping utility
-```
-pingu 8.8.8.8
-```
+## (Roughly) implemented so far
+* [x] Arp
+* [x] Ipv4
+* [x] Ping
+* [x] TCP handshake
+* [ ] TCP
+* [ ] UDP
+* [ ] ...
 
 ## Contributions
 Contributions of code/feedback/ideas to the playground are very welcome. E.g. if you want to practice implementing a network tool/protocol in Rust.
 
 ## Todo
 
-* [ ] Write integration tests
-* [ ] Fix unit tests
-* [x] Implement timeouts for unreachable hosts
-* [ ] Move get_mac_of_target() fn to utilities.rs and inline it
-* [ ] Add documentation
+* [ ] Add build instructions to Readme.
